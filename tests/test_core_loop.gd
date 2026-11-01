@@ -12,6 +12,7 @@ const VotingSystem = preload("res://systems/VotingSystem.gd")
 const ScenarioLoader = preload("res://scenarios/ScenarioLoader.gd")
 const AssassinsMode = preload("res://modes/AssassinsMode.gd")
 const CultistsMode = preload("res://modes/CultistsMode.gd")
+const EventText = preload("res://game/EventText.gd")
 
 var _passed := 0
 var _failed := 0
@@ -30,6 +31,10 @@ func _init() -> void:
 	_test_wrong_accusation_and_no_majority()
 	_test_sabotage_weary_lasts_one_day()
 	_test_private_state_hides_roles()
+	_test_min_players_override()
+	_test_council_and_night_views()
+	_test_game_over_reveals_traitors()
+	_test_event_text()
 
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -261,3 +266,81 @@ func _test_private_state_hides_roles() -> void:
 	_check(traitor_view["me"]["role"] == "Assassin", "traitor sees own role")
 	_check(traitor_view["traitor_allies"].size() == 1, "traitor sees their ally (7 players)")
 	_check(traitor_view["plot_target_npc"] == "duchess_isolde", "traitor knows the target")
+
+
+func _test_min_players_override() -> void:
+	print("Min players override (test games)")
+	var s = GameSession.new(null, "small", 5)
+	s.min_players = 2
+	s.add_player(1, "A", Enums.CharacterClass.MAGE)
+	s.add_player(2, "B", Enums.CharacterClass.ROGUE)
+	_check(s.start_game()["ok"], "2-player test game can start when min_players is lowered")
+	_check(s.state.traitor_ids().size() == 1, "still exactly one traitor")
+
+
+func _test_council_and_night_views() -> void:
+	print("Council and night views")
+	var s = _new_game(5)
+	var t := _first_traitor(s)
+	var v := _first_innocent(s)
+
+	_advance_to(s, GamePhase.Phase.COUNCIL)
+	_check(s.get_private_state(v)["my_vote"] == GameSession.NO_VOTE, "no vote yet")
+	s.cast_vote(v, t)
+	var view: Dictionary = s.get_private_state(v)
+	_check(view["my_vote"] == t, "my_vote shows my choice")
+	_check(view["votes_cast"] == 1, "vote count visible")
+	_check(not s.get_private_state(t).has("my_vote") or s.get_private_state(t)["my_vote"] == GameSession.NO_VOTE, "others' votes stay hidden")
+	_check(not JSON.stringify(s.get_public_state()).contains("my_vote"), "public view has no individual votes")
+
+	_advance_to(s, GamePhase.Phase.NIGHT)
+	s.submit_traitor_action(t, NightSystem.TraitorAction.SABOTAGE, v, Enums.StatusEffect.WEARY)
+	_check(s.get_private_state(t).has("night_plan"), "traitor sees the night plan")
+	_check(s.get_private_state(t)["night_plan"]["target"] == v, "night plan shows target")
+	_check(not s.get_private_state(v).has("night_plan"), "innocent can't see the night plan")
+	_check(s.get_private_state(t)["plot_target_name"] == "Duchess Isolde Marrow", "traitor sees target's name")
+
+
+func _test_game_over_reveals_traitors() -> void:
+	print("Game over reveals traitors")
+	var s = _new_game(5)
+	_check(not s.get_public_state().has("revealed_traitors"), "traitors hidden during the game")
+	_advance_to(s, GamePhase.Phase.GAME_OVER)
+	_check(s.get_public_state()["revealed_traitors"] == s.state.traitor_ids(), "traitors revealed at game over")
+
+
+func _test_event_text() -> void:
+	print("Event narration")
+	var s = _new_game(5)
+	var t := _first_traitor(s)
+	var v := _first_innocent(s)
+
+	var traitor_view: Dictionary = s.get_private_state(t)
+	traitor_view["my_id"] = t
+	var briefing := ""
+	for e in traitor_view["events"]:
+		if e["type"] == "you_are_traitor":
+			briefing = EventText.format_event(e, traitor_view)
+	_check(briefing.contains("an Assassin"), "briefing names the role with the right article")
+	_check(briefing.contains("Duchess Isolde Marrow"), "briefing names the target")
+	_check(briefing.contains("/a"), "briefing explains ally chat")
+
+	var innocent_view: Dictionary = s.get_private_state(v)
+	var lines := []
+	for e in innocent_view["events"]:
+		var line := EventText.format_event(e, innocent_view)
+		if line != "":
+			lines.append(line)
+	_check(lines.size() == 1 and lines[0].begins_with("Day 1 dawns over The Wayward Lantern"), "innocent only sees the dawn, no secrets")
+
+	_advance_to(s, GamePhase.Phase.NIGHT)
+	s.submit_traitor_action(t, NightSystem.TraitorAction.SABOTAGE, v, Enums.StatusEffect.WEARY)
+	s.advance_phase()
+	var after: Dictionary = s.get_public_state()
+	var sabotage_line := ""
+	for e in s.state.events_visible_to(v):
+		if e["type"] == "sabotage":
+			sabotage_line = EventText.format_event(e, after)
+	_check(sabotage_line.contains("wakes up drugged"), "sabotage is narrated with the flavor name")
+	_check(EventText.phase_text("COUNCIL") != "", "phases have narration")
+	_check(EventText.with_article("Cultist") == "a Cultist", "a/an for consonants")
