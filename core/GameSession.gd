@@ -19,6 +19,8 @@ const Phase = GamePhaseScript.Phase
 const Action = GamePhaseScript.Action
 const TraitorAction = NightSystemScript.TraitorAction
 const ABSTAIN = VotingSystemScript.ABSTAIN
+## my_vote value in a player's view when they haven't voted yet.
+const NO_VOTE := -2
 
 signal phase_changed(old_phase: int, new_phase: int)
 signal game_over(winner: int, reason: String)
@@ -28,6 +30,8 @@ var phase
 var voting
 var night
 var rng := RandomNumberGenerator.new()
+## Players needed to start. The network layer lowers this for test games.
+var min_players := Config.MIN_PLAYERS
 
 
 ## mode: a GameMode instance. Defaults to Assassins at the Wayward Lantern.
@@ -69,16 +73,18 @@ func add_player(player_id: int, display_name: String, character_class: int) -> D
 func start_game() -> Dictionary:
 	if phase.current != Phase.LOBBY:
 		return _err("The game has already started.")
-	if state.players.size() < Config.MIN_PLAYERS:
-		return _err("Need at least %d players." % Config.MIN_PLAYERS)
+	if state.players.size() < min_players:
+		return _err("Need at least %d players." % min_players)
 
 	var traitors: Array = RoleSystem.assign_roles(state.players, rng)
+	var target_npc: String = state.scenario.get("target_npc", "")
 	state.log_event("roles_assigned", {"traitors": traitors}, "server")
 	for pid in traitors:
 		state.log_event("you_are_traitor", {
 			"role": state.mode.traitor_role_label,
 			"allies": traitors,
-			"target_npc": state.scenario.get("target_npc", ""),
+			"target_npc": target_npc,
+			"target_name": state.npc_name(target_npc),
 		}, [pid])
 
 	phase.advance() # LOBBY -> MORNING
@@ -189,12 +195,22 @@ func submit_traitor_action(player_id: int, action: int, target_id := -1, effect 
 func get_public_state() -> Dictionary:
 	var data: Dictionary = state.get_public_state()
 	data["phase"] = GamePhaseScript.phase_name(phase.current)
+	if phase.current == Phase.COUNCIL:
+		# How many have voted, but never who voted for whom.
+		data["votes_cast"] = voting.votes.size()
 	return data
 
 
 func get_private_state(player_id: int) -> Dictionary:
 	var data: Dictionary = state.get_private_state(player_id)
 	data["phase"] = GamePhaseScript.phase_name(phase.current)
+	if phase.current == Phase.COUNCIL:
+		data["votes_cast"] = voting.votes.size()
+		data["my_vote"] = voting.votes.get(player_id, NO_VOTE)
+	var me = state.players.get(player_id)
+	if phase.current == Phase.NIGHT and me != null and me.is_traitor():
+		# Traitors see tonight's plan so allies can coordinate.
+		data["night_plan"] = night.pending.duplicate()
 	return data
 
 

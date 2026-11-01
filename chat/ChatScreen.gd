@@ -4,10 +4,13 @@ extends Control
 ## All networking goes through the Network autoload.
 
 const ChatRules = preload("res://chat/ChatRules.gd")
+const GamePanel = preload("res://game/GamePanel.gd")
 
 const COLOR_SYSTEM := "#9a9a9a"
 const COLOR_WHISPER := "#c99be0"
 const COLOR_NAME := "#e8c37a"
+const COLOR_TEAM := "#e07a7a"
+const COLOR_GAME := "#7fc4d8"
 
 var _connect_panel: VBoxContainer
 var _name_input: LineEdit
@@ -30,7 +33,10 @@ func _ready() -> void:
 	Network.roster_changed.connect(_on_roster_changed)
 	Network.chat_received.connect(_on_chat)
 	Network.whisper_received.connect(_on_whisper)
+	Network.team_received.connect(_on_team)
 	Network.system_message.connect(_on_system)
+	Game.game_log.connect(_on_game_log)
+	Game.state_changed.connect(func(_view): _refresh_roster())
 	_show_connect_panel()
 
 
@@ -87,6 +93,8 @@ func _build_ui() -> void:
 	_chat_panel.add_theme_constant_override("separation", 8)
 	root.add_child(_chat_panel)
 
+	_chat_panel.add_child(GamePanel.new())
+
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 8)
@@ -101,7 +109,7 @@ func _build_ui() -> void:
 	body.add_child(_log)
 
 	var side_panel := VBoxContainer.new()
-	side_panel.custom_minimum_size = Vector2(180, 0)
+	side_panel.custom_minimum_size = Vector2(220, 0)
 	body.add_child(side_panel)
 	var roster_label := Label.new()
 	roster_label.text = "In the room"
@@ -120,6 +128,7 @@ func _build_ui() -> void:
 	_chat_panel.add_child(input_row)
 	_input = LineEdit.new()
 	_input.placeholder_text = "Say something...   /w name message to whisper"
+	_input.custom_minimum_size = Vector2(0, 32)
 	_input.max_length = ChatRules.MAX_MESSAGE_LENGTH
 	_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_input.text_submitted.connect(_on_text_submitted)
@@ -190,10 +199,39 @@ func _on_disconnected(reason: String) -> void:
 	_show_connect_panel()
 
 
-func _on_roster_changed(names: Array) -> void:
+func _on_roster_changed(_names: Array) -> void:
+	_refresh_roster()
+
+
+## Fills the player list. In a game it shows each player's class and any
+## public status; in the lobby just names. The leader gets a star.
+func _refresh_roster() -> void:
+	if _roster_list == null:
+		return
 	_roster_list.clear()
-	for n in names:
-		_roster_list.add_item(n + ("  (you)" if n == Network.my_name else ""))
+	var view: Dictionary = Game.state
+	var leader_name: String = view.get("leader_name", "")
+	if view.get("in_game", false):
+		for p in view.get("players", []):
+			var player_name: String = p.get("name", "?")
+			var line := "%s · %s" % [player_name, String(p.get("class", "")).capitalize()]
+			for effect in p.get("effects", []):
+				line += " [%s]" % effect
+			if p.get("unmasked", false):
+				line += " (unmasked)"
+			_add_roster_item(line, player_name, leader_name)
+	else:
+		for n in Network.roster:
+			_add_roster_item(n, n, leader_name)
+
+
+func _add_roster_item(text: String, player_name: String, leader_name: String) -> void:
+	if player_name == leader_name:
+		text = "★ " + text
+	if player_name == Network.my_name:
+		text += "  (you)"
+	var idx := _roster_list.add_item(text)
+	_roster_list.set_item_metadata(idx, player_name)
 
 
 func _on_chat(from_name: String, text: String) -> void:
@@ -208,6 +246,15 @@ func _on_whisper(from_name: String, to_name: String, text: String) -> void:
 	else:
 		header = "%s whispers to you" % ChatRules.escape_bbcode(from_name)
 	_append("[color=%s][i]%s:[/i] %s[/color]" % [COLOR_WHISPER, header, ChatRules.escape_bbcode(text)])
+
+
+func _on_team(from_name: String, text: String) -> void:
+	_append("[color=%s][b][lb]Allies] %s[/b]: %s[/color]" % [
+		COLOR_TEAM, ChatRules.escape_bbcode(from_name), ChatRules.escape_bbcode(text)])
+
+
+func _on_game_log(text: String) -> void:
+	_append("[color=%s]» %s[/color]" % [COLOR_GAME, ChatRules.escape_bbcode(text)])
 
 
 func _on_system(text: String) -> void:
@@ -226,7 +273,7 @@ func _on_text_submitted(text: String) -> void:
 
 ## Double-clicking a name starts a whisper to them.
 func _on_roster_activated(index: int) -> void:
-	var target: String = _roster_list.get_item_text(index).replace("  (you)", "")
+	var target: String = str(_roster_list.get_item_metadata(index))
 	if target == Network.my_name:
 		return
 	_input.text = "/w %s " % target

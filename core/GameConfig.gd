@@ -5,6 +5,9 @@ extends RefCounted
 
 const MIN_PLAYERS := 4
 const MAX_PLAYERS := 10
+## Minimum players when running from the editor or a debug build, so you can
+## test with 2-3 windows. Exported release builds use MIN_PLAYERS.
+const TEST_MIN_PLAYERS := 2
 
 const ACTION_POINTS_PER_DAY := 3
 ## A player never drops below this many action points, even when sabotaged.

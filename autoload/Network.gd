@@ -28,9 +28,18 @@ signal disconnected(reason: String)
 signal roster_changed(names: Array)
 signal chat_received(from_name: String, text: String)
 signal whisper_received(from_name: String, to_name: String, text: String)
+## Private chat between allies (/a), e.g. the assassins.
+signal team_received(from_name: String, text: String)
 signal system_message(text: String)
 
+## Server only: a player finished joining / a joined player left.
+signal player_joined(peer_id: int)
+signal player_left(peer_id: int)
+
 var is_dedicated_server := false
+## Server only: when not "", new players are turned away with this reason
+## (set by the Game autoload while a game is running).
+var join_locked_reason := ""
 ## Our name once the server has accepted us; "" when not in a room.
 var my_name := ""
 var roster: Array = []
@@ -63,11 +72,34 @@ func is_in_room() -> bool:
 	return my_name != ""
 
 
+# --- Server-side helpers for other autoloads ----------------------------------
+
+## Peer ids of joined players, in the order they joined.
+func player_ids() -> Array:
+	return _players.keys()
+
+
+func player_name(peer_id: int) -> String:
+	return _players.get(peer_id, "")
+
+
+## The room leader is whoever has been in the room longest. They start
+## games and move phases along.
+func leader_id() -> int:
+	return _players.keys()[0] if not _players.is_empty() else -1
+
+
+## Sends a system message to one player.
+func notify(peer_id: int, text: String) -> void:
+	if _players.has(peer_id):
+		_send_to(peer_id, "_rpc_system", [text])
+
+
 # --- Public API (called by the UI) -------------------------------------------
 
 ## Host a room and join it as a player. Returns "" on success or an error.
-func host(player_name: String, port := DEFAULT_PORT) -> String:
-	var clean := ChatRules.clean_name(player_name)
+func host(wanted_name: String, port := DEFAULT_PORT) -> String:
+	var clean := ChatRules.clean_name(wanted_name)
 	if clean == "":
 		return BAD_NAME_TEXT
 	var err := _start_server(port)
@@ -79,8 +111,8 @@ func host(player_name: String, port := DEFAULT_PORT) -> String:
 
 ## Connect to a host or dedicated server. Returns "" if the attempt started.
 ## The `connected` or `disconnected` signal reports how it went.
-func join(player_name: String, address: String, port := DEFAULT_PORT) -> String:
-	var clean := ChatRules.clean_name(player_name)
+func join(wanted_name: String, address: String, port := DEFAULT_PORT) -> String:
+	var clean := ChatRules.clean_name(wanted_name)
 	if clean == "":
 		return BAD_NAME_TEXT
 	if address == "":
@@ -156,6 +188,11 @@ func _rpc_whisper(from_name: String, to_name: String, text: String) -> void:
 
 
 @rpc("authority", "reliable")
+func _rpc_team(from_name: String, text: String) -> void:
+	team_received.emit(from_name, text)
+
+
+@rpc("authority", "reliable")
 func _rpc_system(text: String) -> void:
 	system_message.emit(text)
 
@@ -164,6 +201,9 @@ func _rpc_system(text: String) -> void:
 
 func _handle_join(peer_id: int, requested_name: String) -> void:
 	if _players.has(peer_id):
+		return
+	if join_locked_reason != "":
+		_reject(peer_id, join_locked_reason)
 		return
 	if _players.size() >= Config.MAX_PLAYERS:
 		_reject(peer_id, "The room is full.")
@@ -181,6 +221,7 @@ func _handle_join(peer_id: int, requested_name: String) -> void:
 	_broadcast("_rpc_roster", [_players.values()])
 	_broadcast("_rpc_system", ["%s joined the room." % assigned])
 	_log("%s joined (peer %d)" % [assigned, peer_id])
+	player_joined.emit(peer_id)
 
 
 func _handle_message(peer_id: int, raw: String) -> void:
@@ -193,7 +234,28 @@ func _handle_message(peer_id: int, raw: String) -> void:
 	var sender: String = _players[peer_id]
 	var cmd := ChatRules.parse(raw)
 	var kind: String = cmd["type"]
-	if kind == "say":
+	if kind == "empty":
+		return
+	if kind == "error":
+		_send_to(peer_id, "_rpc_system", [cmd["text"]])
+		return
+
+	# The game can restrict chat (e.g. public chat closes at night).
+	var block: String = Game.chat_block_reason(peer_id, kind)
+	if block != "":
+		_send_to(peer_id, "_rpc_system", [block])
+		return
+
+	if kind == "team":
+		var allies: Array = Game.team_recipients(peer_id)
+		if allies.is_empty():
+			# Same reply as any unknown command, so /a doesn't reveal anything.
+			_send_to(peer_id, "_rpc_system", [ChatRules.unknown_command_text("a")])
+			return
+		for ally_id in allies:
+			if _players.has(ally_id):
+				_send_to(ally_id, "_rpc_team", [sender, cmd["text"]])
+	elif kind == "say":
 		_broadcast("_rpc_chat", [sender, cmd["text"]])
 		_log("%s: %s" % [sender, cmd["text"]])
 	elif kind == "whisper":
@@ -206,8 +268,6 @@ func _handle_message(peer_id: int, raw: String) -> void:
 			var target_name: String = _players[target_id]
 			_send_to(peer_id, "_rpc_whisper", [sender, target_name, cmd["text"]])
 			_send_to(target_id, "_rpc_whisper", [sender, target_name, cmd["text"]])
-	elif kind == "error":
-		_send_to(peer_id, "_rpc_system", [cmd["text"]])
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
@@ -219,6 +279,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_broadcast("_rpc_roster", [_players.values()])
 	_broadcast("_rpc_system", ["%s left the room." % left_name])
 	_log("%s left (peer %d)" % [left_name, peer_id])
+	player_left.emit(peer_id)
 
 
 func _reject(peer_id: int, reason: String) -> void:
@@ -246,9 +307,9 @@ func _broadcast(method: String, args: Array) -> void:
 		_send_to(peer_id, method, args)
 
 
-func _find_peer(player_name: String) -> int:
+func _find_peer(wanted_name: String) -> int:
 	for peer_id in _players.keys():
-		if String(_players[peer_id]).to_lower() == player_name.to_lower():
+		if String(_players[peer_id]).to_lower() == wanted_name.to_lower():
 			return peer_id
 	return -1
 
@@ -301,6 +362,7 @@ func _reset() -> void:
 	roster = []
 	_pending_name = ""
 	_players.clear()
+	join_locked_reason = ""
 
 
 ## Parses user args (everything after "--"): "--server" -> {"server": ""},

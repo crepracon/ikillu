@@ -47,6 +47,7 @@ static func unique_name(wanted: String, taken: Array) -> String:
 ## Turns raw input into a command:
 ##   { "type": "say", "text": ... }
 ##   { "type": "whisper", "target": ..., "text": ... }
+##   { "type": "team", "text": ... }   (/a: private chat with your allies)
 ##   { "type": "error", "text": ... }
 ##   { "type": "empty" }
 static func parse(raw: String) -> Dictionary:
@@ -67,7 +68,18 @@ static func parse(raw: String) -> Dictionary:
 		if body == "":
 			return {"type": "error", "text": "Usage: /w name message"}
 		return {"type": "whisper", "target": rest.substr(0, split), "text": body}
-	return {"type": "error", "text": "Unknown command /%s. Try /w name message." % command}
+	if command == "a":
+		var team_text := text.substr(space + 1).strip_edges() if space > 0 else ""
+		if team_text == "":
+			return {"type": "error", "text": "Usage: /a message"}
+		return {"type": "team", "text": team_text}
+	return {"type": "error", "text": unknown_command_text(command)}
+
+
+## Shared so the server can answer "/a" from a non-traitor exactly like any
+## unknown command, without revealing that the command exists.
+static func unknown_command_text(command: String) -> String:
+	return "Unknown command /%s. Try /w name message." % command
 
 
 ## Makes player text safe to show in a RichTextLabel with BBCode on, so
