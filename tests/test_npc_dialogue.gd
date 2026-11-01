@@ -203,6 +203,10 @@ func _test_memory_and_transcript() -> void:
 	_check(ctx_b["memories"].is_empty() and ctx_b["transcript"].is_empty(), "one player's chat stays private from another")
 	_check(_prompt_text(ctx_a).contains("Asked about the corner suite."), "memories reach the prompt")
 
+	inn.apply_reply("mara", "a", "Rowan", "Who has the corner suite, again?", _reply({"memory": "Asked about the corner suite."}))
+	ctx_a = inn.dialogue_context("mara", "a", {"name": "Rowan"}, {"day": 1})
+	_check(ctx_a["memories"].size() == 1, "the same memory twice in a row is stored once")
+
 	inn.start_day(2)
 	ctx_a = inn.dialogue_context("mara", "a", {"name": "Rowan"}, {"day": 2})
 	_check(ctx_a["transcript"].is_empty() and ctx_a["memories"].size() == 1, "a new day clears the transcript but keeps memories")

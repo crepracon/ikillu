@@ -317,48 +317,78 @@ func _handle_message(peer_id: int, raw: String) -> void:
 
 ## A player asks an NPC something. The answer is private: only the asker
 ## sees it, so they can share it truthfully, twist it, or keep it secret.
+## In a game, the game's rules apply (phase, action points) and the NPCs
+## remember that game only. In the lobby, anyone can chat with them freely.
 ## Runs as a coroutine while the AI answers.
 func _handle_ask(peer_id: int, sender: String, target: String, text: String) -> void:
-	if _npcs == null or _narrator == null:
+	if _narrator == null:
 		return
-	var found: Dictionary = _npcs.find(target)
+	var game_npcs = Game.npc_manager()
+	var npcs = game_npcs if game_npcs != null else _npcs
+	if npcs == null:
+		return
+	var found: Dictionary = npcs.find(target)
 	if not found["ok"]:
 		_send_to(peer_id, "_rpc_system", [found["error"]])
 		return
 	if _npc_busy.has(peer_id):
 		_send_to(peer_id, "_rpc_system", ["Wait for an answer before asking again."])
 		return
-	var used: int = _npc_usage.get(sender, 0)
-	if used >= NPCConfig.SANDBOX_MESSAGE_LIMIT:
-		_send_to(peer_id, "_rpc_system", ["You've talked the townsfolk's ears off for one session."])
-		return
-	_npc_usage[sender] = used + 1
-
 	var npc_id: String = found["id"]
-	var npc_name: String = _npcs.get_npc(npc_id).name
+	var npc_name: String = npcs.get_npc(npc_id).name
+
+	var messages_left := -1
+	if game_npcs != null:
+		var check: Dictionary = Game.begin_npc_message(peer_id, npc_id)
+		if not check["ok"]:
+			_send_to(peer_id, "_rpc_system", [check["error"]])
+			return
+		messages_left = check.get("messages_left", -1)
+		if check.get("opened", false):
+			_send_to(peer_id, "_rpc_system", ["(You spend an action point to talk with %s: up to %d questions today.)" % [
+				npc_name, NPCConfig.MESSAGES_PER_CONVERSATION]])
+	else:
+		var used: int = _npc_usage.get(sender, 0)
+		if used >= NPCConfig.SANDBOX_MESSAGE_LIMIT:
+			_send_to(peer_id, "_rpc_system", ["You've talked the townsfolk's ears off for one session."])
+			return
+		_npc_usage[sender] = used + 1
+
 	_send_to(peer_id, "_rpc_npc_asked", [npc_name, text])
 	if not _narrator.is_enabled() and not _npc_notice_sent.has(sender):
 		_npc_notice_sent[sender] = true
 		_send_to(peer_id, "_rpc_system", ["(The townsfolk are on scripted lines: the server has no API key set. See the README.)"])
 
 	_npc_busy[peer_id] = true
-	var npcs = _npcs
-	var context: Dictionary = npcs.dialogue_context(npc_id, sender, {"name": sender}, {"day": 1})
+	var context: Dictionary
+	if game_npcs != null:
+		context = Game.npc_context(peer_id, npc_id)
+	else:
+		context = npcs.dialogue_context(npc_id, sender, {"name": sender}, {"day": 1})
 	var reply: Dictionary = await _narrator.reply(context, text)
 	_npc_busy.erase(peer_id)
-	# The room may have closed, or the player left, while the NPC was thinking.
-	if _npcs != npcs or _players.get(peer_id, "") != sender:
+
+	# The game may have ended, the room closed, or the player left while the
+	# NPC was thinking. Then the answer goes nowhere.
+	var current = Game.npc_manager() if game_npcs != null else _npcs
+	if current != npcs or _players.get(peer_id, "") != sender:
 		return
-	npcs.apply_reply(npc_id, sender, sender, text, reply)
+	if game_npcs != null:
+		Game.finish_npc_message(peer_id, npc_id, text, reply)
+	else:
+		npcs.apply_reply(npc_id, sender, sender, text, reply)
 	_send_to(peer_id, "_rpc_npc_reply", [npc_name, reply["action"], reply["dialogue"]])
+	if messages_left == 0:
+		_send_to(peer_id, "_rpc_system", ["(That was your last question for %s today. Another action point opens a new conversation.)" % npc_name])
 	_log("%s asked %s: %s -> %s" % [sender, npc_name, text, reply["dialogue"]])
 
 
 func _npc_list_text() -> String:
-	if _npcs == null:
+	var npcs = Game.npc_manager() if Game.npc_manager() != null else _npcs
+	if npcs == null:
 		return "There's nobody to talk to here."
 	var lines := ["Townsfolk (talk with /ask name question):"]
-	for npc in _npcs.directory():
+	for npc in npcs.directory():
 		lines.append("  %s: %s, %s (%s)" % [npc["alias"], npc["name"], String(npc["occupation"]).to_lower(), npc["location"]])
 	return "\n".join(lines)
 

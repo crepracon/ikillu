@@ -149,6 +149,8 @@ func remember(player_key: String, day: int, text: String) -> void:
 	if clean == "":
 		return
 	var list: Array = _memories.get(player_key, [])
+	if not list.is_empty() and list[-1]["text"] == clean:
+		return # Same as the last memory: nothing new to remember.
 	list.append({"day": day, "text": clean})
 	while list.size() > Config.MAX_MEMORIES_PER_PLAYER:
 		list.pop_front()

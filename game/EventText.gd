@@ -53,7 +53,7 @@ static func phase_text(phase: String) -> String:
 	if phase == "MORNING":
 		return "Morning. Everyone gathers in the common room."
 	if phase == "INVESTIGATION":
-		return "Investigation. (Exploring the inn arrives in the next build. For now, talk it over.)"
+		return "Investigation. Question the townsfolk with /ask name question. Each conversation costs 1 action point."
 	if phase == "SOCIAL":
 		return "Social. Compare notes, make alliances, whisper with /w."
 	if phase == "COUNCIL":

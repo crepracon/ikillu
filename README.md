@@ -92,7 +92,8 @@ numbers are on each mode, marked `DEFAULT`.
 2. The **room leader** (★ in the player list: whoever has been in the room longest) clicks **Start game**.
 3. Everyone gets a secret role and a class. Assassins learn the target and their allies.
 4. The leader clicks **Next phase ▶** to move through each day:
-   - **Morning, Investigation, Social:** talk it over. (Exploring the inn and finding clues comes next.)
+   - **Morning, Social:** talk it over.
+   - **Investigation:** question the townsfolk with `/ask name question` (see *Talking to the townsfolk* below). Each conversation costs 1 action point. (Exploring the inn and finding clues comes next.)
    - **Council:** everyone picks someone to accuse, or abstains, and clicks **Vote**. You can change your vote until the leader moves on. A majority unmasks someone.
    - **Night:** public chat closes. The assassins pick tonight's move: advance the contract, or drug or mislead a traveler.
 5. The game ends when the contract hits 5 or every assassin is unmasked. Everyone sees who the assassins were, and the leader clicks **Back to lobby**.
@@ -187,11 +188,14 @@ seen something that isn't in their notes. Every reply is checked before use (fix
 length caps, labels from fixed lists). A reply that breaks character gets one retry, then a
 scripted line.
 
-**In a game.** `GameSession` already has the rules, ready for when the chat room is wired to it.
-NPCs can be questioned during INVESTIGATION. The first message to an NPC each day costs 1 action
-point and opens a conversation of 4 messages (`NPCConfig.MESSAGES_PER_CONVERSATION`, DEFAULT).
-The flow is `request_npc_message()` → `npc_dialogue_context()` → `NarrativeManager.reply()` →
-`record_npc_reply()`.
+**In a game vs. the lobby.** During a game, NPCs can only be questioned in the Investigation
+phase. The first message to an NPC each day costs 1 action point and opens a conversation of 4
+messages (`NPCConfig.MESSAGES_PER_CONVERSATION`, DEFAULT). Each game starts the townsfolk fresh,
+with no memories of earlier games. In the lobby, anyone can chat with them for free (up to
+`NPCConfig.SANDBOX_MESSAGE_LIMIT` messages per player per session), which is handy for testing
+characters. In code, a game message goes `request_npc_message()` → `npc_dialogue_context()` →
+`NarrativeManager.reply()` → `record_npc_reply()` (see `autoload/Game.gd` and
+`autoload/Network.gd`).
 
 **Writing NPCs.** Fields in the scenario JSON:
 
