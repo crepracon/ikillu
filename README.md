@@ -70,6 +70,9 @@ numbers are on each mode, marked `DEFAULT`.
 | `systems/VotingSystem.gd` | Council vote tallying. |
 | `systems/NightSystem.gd` | The traitors' nightly action. |
 | `autoload/Network.gd` | WebSocket host/join/dedicated server and the server-authoritative chat. |
+| `autoload/Game.gd` | Runs the game session on the server and sends each player their own view. |
+| `game/GamePanel.gd` | Status bar, role, and phase controls (start, vote, night actions). |
+| `game/EventText.gd` | Turns game events into narration in the chat log. |
 | `chat/ChatScreen.gd` | The chat room UI (built in code). |
 | `chat/ChatRules.gd`, `chat/RateLimiter.gd` | Name and message validation, commands, spam limits. |
 | `npc/NPCManager.gd` | All NPCs in a session: finding them by name, what the AI may know, applying replies by the rules. |
@@ -82,6 +85,23 @@ numbers are on each mode, marked `DEFAULT`.
 | `tests/test_core_loop.gd` | Headless tests that play full games in both modes. |
 | `tests/test_chat_rules.gd` | Headless tests for chat validation. |
 | `tests/test_npc_dialogue.gd` | Headless tests for NPC knowledge, trust, memory, prompts and the AI client. |
+
+## Playing the demo
+
+1. Everyone joins the same room (see *The chat room* below).
+2. The **room leader** (★ in the player list: whoever has been in the room longest) clicks **Start game**.
+3. Everyone gets a secret role and a class. Assassins learn the target and their allies.
+4. The leader clicks **Next phase ▶** to move through each day:
+   - **Morning, Investigation, Social:** talk it over. (Exploring the inn and finding clues comes next.)
+   - **Council:** everyone picks someone to accuse, or abstains, and clicks **Vote**. You can change your vote until the leader moves on. A majority unmasks someone.
+   - **Night:** public chat closes. The assassins pick tonight's move: advance the contract, or drug or mislead a traveler.
+5. The game ends when the contract hits 5 or every assassin is unmasked. Everyone sees who the assassins were, and the leader clicks **Back to lobby**.
+
+**Assassins** can talk privately at any time with `/a message`, including at night.
+
+**Testing alone:** when run from the editor, games can start with just **2 players**
+(`TEST_MIN_PLAYERS` in `core/GameConfig.gd`). Exported builds need 4. Three windows is
+the best solo test, because with two players a council can never reach a majority.
 
 ## The chat room
 
@@ -207,6 +227,9 @@ Each prints PASS/FAIL per check and exits with code 1 if anything fails.
 
 ## Not built yet
 
-Connecting the chat room to the game session (lobby → start game → phases), using the
-location map for movement, investigation results, evidence, and night actions that leave
-something for NPC witnesses to notice (so the townsfolk can hold real clues about the traitors).
+- Exploring the inn: moving between locations, investigating, and finding clues (so action points matter).
+- Night actions that leave something for NPC witnesses to notice, so the townsfolk can hold real clues about the assassins.
+- Assassin daytime actions.
+- Phase timers or "everyone's ready" instead of the leader advancing manually.
+- Rejoining after a disconnect. A player who leaves mid-game still counts toward the vote majority.
+- Export settings. Add `*.json` to the export filter so scenario files are included.

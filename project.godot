@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.3")
 [autoload]
 
 Network="*res://autoload/Network.gd"
+Game="*res://autoload/Game.gd"
 
 [display]
 

@@ -47,6 +47,7 @@ static func unique_name(wanted: String, taken: Array) -> String:
 ## Turns raw input into a command:
 ##   { "type": "say", "text": ... }
 ##   { "type": "whisper", "target": ..., "text": ... }
+##   { "type": "team", "text": ... }                 (/a: private chat with your allies)
 ##   { "type": "ask", "target": ..., "text": ... }   talk to an NPC
 ##   { "type": "npcs" }                              list the NPCs
 ##   { "type": "error", "text": ... }
@@ -67,7 +68,17 @@ static func parse(raw: String) -> Dictionary:
 		return _target_and_text("ask", rest, "Usage: /ask name question  (/npcs lists the townsfolk)")
 	if command == "npcs" or command == "townsfolk":
 		return {"type": "npcs"}
-	return {"type": "error", "text": "Unknown command /%s. Try /w name message, /ask name question, or /npcs." % command}
+	if command == "a":
+		if rest == "":
+			return {"type": "error", "text": "Usage: /a message"}
+		return {"type": "team", "text": rest}
+	return {"type": "error", "text": unknown_command_text(command)}
+
+
+## Shared so the server can answer "/a" from a non-traitor exactly like any
+## unknown command, without revealing that the command exists.
+static func unknown_command_text(command: String) -> String:
+	return "Unknown command /%s. Try /w name message, /ask name question, or /npcs." % command
 
 
 ## "name the rest of the message" -> { type, target, text }, or a usage error.
