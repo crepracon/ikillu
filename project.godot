@@ -12,4 +12,14 @@ config_version=5
 
 config/name="The Hollow Kingdom"
 config/description="Fantasy social deduction RPG (text-based prototype)."
+run/main_scene="res://chat/ChatScreen.tscn"
 config/features=PackedStringArray("4.3")
+
+[autoload]
+
+Network="*res://autoload/Network.gd"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=600
