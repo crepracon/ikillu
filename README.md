@@ -69,7 +69,43 @@ numbers are on each mode, marked `DEFAULT`.
 | `systems/RoleSystem.gd` | Seeded secret role assignment. |
 | `systems/VotingSystem.gd` | Council vote tallying. |
 | `systems/NightSystem.gd` | The traitors' nightly action. |
+| `autoload/Network.gd` | WebSocket host/join/dedicated server and the server-authoritative chat. |
+| `chat/ChatScreen.gd` | The chat room UI (built in code). |
+| `chat/ChatRules.gd`, `chat/RateLimiter.gd` | Name and message validation, commands, spam limits. |
 | `tests/test_core_loop.gd` | Headless tests that play full games in both modes. |
+| `tests/test_chat_rules.gd` | Headless tests for chat validation. |
+
+## The chat room
+
+Running the project opens the chat room: the first multiplayer piece, built on WebSockets
+so it will also work from a browser export later.
+
+**Try it on one computer:**
+1. In the Godot editor, open *Debug → Customize Run Instances*, enable multiple instances, and set it to 2 (or just run the project twice).
+2. In the first window, enter a name and click **Host a room**.
+3. In the second window, enter a different name and click **Join** (address `127.0.0.1`, port `8910`).
+
+**Play over a network:** the host shares their IP address, and everyone else joins it. Port
+8910 needs to be reachable (port-forwarded, or use something like Tailscale or ZeroTier).
+
+**Dedicated server:** run with no window, then everyone joins it:
+
+```
+godot --headless --path . -- --server --port=8910
+```
+
+**In the room:**
+- Type to talk to everyone.
+- `/w name message` whispers privately. Double-clicking a name in the list starts one.
+- Names are letters, numbers, `-` and `_`. Duplicate names get a number added.
+
+**How it's secured:** the server is the only authority. Clients can only ask to join or
+send a message; the server checks names, caps message length, rate-limits spam, and decides
+who receives what. Whispers only go to the two people involved. Player text is escaped so
+nobody can inject formatting into other players' chat logs.
+
+The code is in `autoload/Network.gd` (connections and server logic), `chat/ChatScreen.gd` (UI),
+and `chat/ChatRules.gd` (validation).
 
 ## Running the tests
 
@@ -77,12 +113,13 @@ From the project folder:
 
 ```
 godot --headless --script res://tests/test_core_loop.gd
+godot --headless --script res://tests/test_chat_rules.gd
 ```
 
-It prints PASS/FAIL per check and exits with code 1 if anything fails.
+Each prints PASS/FAIL per check and exits with code 1 if anything fails.
 
 ## Not built yet
 
-Networking (planned: WebSocket, so playtests can run in a browser), lobby UI, using the
+Connecting the chat room to the game session (lobby → start game → phases), using the
 location map for movement, investigation results, evidence, NPC dialogue and memory, and the
 AI narrative service.
