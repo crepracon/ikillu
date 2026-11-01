@@ -16,6 +16,11 @@ extends Node
 const ChatRules = preload("res://chat/ChatRules.gd")
 const RateLimiter = preload("res://chat/RateLimiter.gd")
 const Config = preload("res://core/GameConfig.gd")
+const ScenarioLoader = preload("res://scenarios/ScenarioLoader.gd")
+const AssassinsMode = preload("res://modes/AssassinsMode.gd")
+const NPCManagerScript = preload("res://npc/NPCManager.gd")
+const NPCConfig = preload("res://npc/NPCConfig.gd")
+const NarrativeManagerScript = preload("res://narrative/NarrativeManager.gd")
 
 const DEFAULT_PORT := 8910
 const SERVER_ID := 1
@@ -29,16 +34,34 @@ signal roster_changed(names: Array)
 signal chat_received(from_name: String, text: String)
 signal whisper_received(from_name: String, to_name: String, text: String)
 signal system_message(text: String)
+## We asked an NPC something (echoed back by the server once accepted).
+signal npc_asked(npc_name: String, text: String)
+## An NPC answered us. `action` is a short stage direction, maybe empty.
+signal npc_replied(npc_name: String, action: String, text: String)
+## The list of NPCs we can talk to: [{ id, alias, name, occupation, location }].
+signal npc_directory_changed(npcs: Array)
 
 var is_dedicated_server := false
 ## Our name once the server has accepted us; "" when not in a room.
 var my_name := ""
 var roster: Array = []
+var npc_directory: Array = []
 
 ## Server only: peer_id -> name, for players who have joined.
 var _players := {}
 var _limiter := RateLimiter.new(ChatRules.RATE_LIMIT_COUNT, ChatRules.RATE_LIMIT_WINDOW_MS)
 var _pending_name := ""
+
+## Server only: the townsfolk. The chat room doesn't run a game yet, so it
+## uses the default mode's scenario and opens conversations for free.
+var _npcs = null
+var _narrator: Node = null
+## peer_id -> true while that player waits on an NPC's answer.
+var _npc_busy := {}
+## player name -> NPC messages sent this session (see NPCConfig.SANDBOX_MESSAGE_LIMIT).
+var _npc_usage := {}
+## player names already told the NPCs are on scripted lines.
+var _npc_notice_sent := {}
 
 
 func _ready() -> void:
@@ -160,6 +183,22 @@ func _rpc_system(text: String) -> void:
 	system_message.emit(text)
 
 
+@rpc("authority", "reliable")
+func _rpc_npc_directory(npcs: Array) -> void:
+	npc_directory = npcs
+	npc_directory_changed.emit(npcs)
+
+
+@rpc("authority", "reliable")
+func _rpc_npc_asked(npc_name: String, text: String) -> void:
+	npc_asked.emit(npc_name, text)
+
+
+@rpc("authority", "reliable")
+func _rpc_npc_reply(npc_name: String, action: String, text: String) -> void:
+	npc_replied.emit(npc_name, action, text)
+
+
 # --- Server logic ------------------------------------------------------------
 
 func _handle_join(peer_id: int, requested_name: String) -> void:
@@ -178,6 +217,8 @@ func _handle_join(peer_id: int, requested_name: String) -> void:
 	_send_to(peer_id, "_rpc_welcome", [assigned])
 	if assigned != clean:
 		_send_to(peer_id, "_rpc_system", ["%s was taken, so you're %s." % [clean, assigned]])
+	if _npcs != null:
+		_send_to(peer_id, "_rpc_npc_directory", [_npcs.directory()])
 	_broadcast("_rpc_roster", [_players.values()])
 	_broadcast("_rpc_system", ["%s joined the room." % assigned])
 	_log("%s joined (peer %d)" % [assigned, peer_id])
@@ -206,8 +247,60 @@ func _handle_message(peer_id: int, raw: String) -> void:
 			var target_name: String = _players[target_id]
 			_send_to(peer_id, "_rpc_whisper", [sender, target_name, cmd["text"]])
 			_send_to(target_id, "_rpc_whisper", [sender, target_name, cmd["text"]])
+	elif kind == "ask":
+		_handle_ask(peer_id, sender, cmd["target"], cmd["text"])
+	elif kind == "npcs":
+		_send_to(peer_id, "_rpc_system", [_npc_list_text()])
 	elif kind == "error":
 		_send_to(peer_id, "_rpc_system", [cmd["text"]])
+
+
+## A player asks an NPC something. The answer is private: only the asker
+## sees it, so they can share it truthfully, twist it, or keep it secret.
+## Runs as a coroutine while the AI answers.
+func _handle_ask(peer_id: int, sender: String, target: String, text: String) -> void:
+	if _npcs == null or _narrator == null:
+		return
+	var found: Dictionary = _npcs.find(target)
+	if not found["ok"]:
+		_send_to(peer_id, "_rpc_system", [found["error"]])
+		return
+	if _npc_busy.has(peer_id):
+		_send_to(peer_id, "_rpc_system", ["Wait for an answer before asking again."])
+		return
+	var used: int = _npc_usage.get(sender, 0)
+	if used >= NPCConfig.SANDBOX_MESSAGE_LIMIT:
+		_send_to(peer_id, "_rpc_system", ["You've talked the townsfolk's ears off for one session."])
+		return
+	_npc_usage[sender] = used + 1
+
+	var npc_id: String = found["id"]
+	var npc_name: String = _npcs.get_npc(npc_id).name
+	_send_to(peer_id, "_rpc_npc_asked", [npc_name, text])
+	if not _narrator.is_enabled() and not _npc_notice_sent.has(sender):
+		_npc_notice_sent[sender] = true
+		_send_to(peer_id, "_rpc_system", ["(The townsfolk are on scripted lines: the server has no API key set. See the README.)"])
+
+	_npc_busy[peer_id] = true
+	var npcs = _npcs
+	var context: Dictionary = npcs.dialogue_context(npc_id, sender, {"name": sender}, {"day": 1})
+	var reply: Dictionary = await _narrator.reply(context, text)
+	_npc_busy.erase(peer_id)
+	# The room may have closed, or the player left, while the NPC was thinking.
+	if _npcs != npcs or _players.get(peer_id, "") != sender:
+		return
+	npcs.apply_reply(npc_id, sender, sender, text, reply)
+	_send_to(peer_id, "_rpc_npc_reply", [npc_name, reply["action"], reply["dialogue"]])
+	_log("%s asked %s: %s -> %s" % [sender, npc_name, text, reply["dialogue"]])
+
+
+func _npc_list_text() -> String:
+	if _npcs == null:
+		return "There's nobody to talk to here."
+	var lines := ["Townsfolk (talk with /ask name question):"]
+	for npc in _npcs.directory():
+		lines.append("  %s: %s, %s (%s)" % [npc["alias"], npc["name"], String(npc["occupation"]).to_lower(), npc["location"]])
+	return "\n".join(lines)
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
@@ -216,6 +309,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	var left_name: String = _players[peer_id]
 	_players.erase(peer_id)
 	_limiter.forget(peer_id)
+	_npc_busy.erase(peer_id)
 	_broadcast("_rpc_roster", [_players.values()])
 	_broadcast("_rpc_system", ["%s left the room." % left_name])
 	_log("%s left (peer %d)" % [left_name, peer_id])
@@ -283,7 +377,20 @@ func _start_server(port: int) -> Error:
 		return err
 	multiplayer.multiplayer_peer = peer
 	_disable_relay()
+	_start_npcs()
 	return OK
+
+
+## Server only: loads the townsfolk and the AI that voices them.
+func _start_npcs() -> void:
+	_npcs = NPCManagerScript.new(ScenarioLoader.load_scenario(AssassinsMode.new().scenario_path))
+	_narrator = NarrativeManagerScript.new()
+	_narrator.name = "Narrator"
+	add_child(_narrator)
+	if _narrator.is_enabled():
+		print("NPC AI is on (model %s)." % _narrator.settings["model"])
+	else:
+		print("NPC AI is off: set ANTHROPIC_API_KEY on this machine to turn it on. NPCs will use scripted lines.")
 
 
 ## Stop clients from sending RPCs straight to each other through the server.
@@ -299,8 +406,16 @@ func _reset() -> void:
 	multiplayer.multiplayer_peer = null
 	my_name = ""
 	roster = []
+	npc_directory = []
 	_pending_name = ""
 	_players.clear()
+	if _narrator != null:
+		_narrator.queue_free()
+		_narrator = null
+	_npcs = null
+	_npc_busy.clear()
+	_npc_usage.clear()
+	_npc_notice_sent.clear()
 
 
 ## Parses user args (everything after "--"): "--server" -> {"server": ""},

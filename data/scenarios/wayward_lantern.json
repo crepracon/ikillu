@@ -3,7 +3,8 @@
   "setting": {
     "name": "The Wayward Lantern",
     "town": "Hollowmere",
-    "summary": "A crossroads inn on the edge of a small market town. A spring storm has washed out the bridge, and a dozen travelers are stuck until the river falls. One of the guests is a duchess travelling to the capital under guard. Somebody has been paid to make sure she never arrives."
+    "summary": "A crossroads inn on the edge of a small market town. A spring storm has washed out the bridge, and a dozen travelers are stuck until the river falls. One of the guests is a duchess travelling to the capital under guard. Somebody has been paid to make sure she never arrives.",
+    "tone": "Grounded low fantasy: rain-lashed, candlelit, a little grim, with dry humor. No modern words or ideas."
   },
   "target_npc": "duchess_isolde",
   "locations": [
@@ -69,7 +70,31 @@
       "occupation": "Noble guest",
       "location": "guest_rooms",
       "personality": "Proud, sharp-tongued, and more frightened than she lets on.",
-      "notes": "The assassins' target. Travelling to the capital to testify before the crown."
+      "notes": "The assassins' target. Travelling to the capital to testify before the crown.",
+      "background": "A duchess of the eastern marches, stranded at the inn with a small escort on her way to the capital. She rarely leaves her corner suite and takes her meals there.",
+      "wants": "To reach the capital alive and testify before the crown, and to show no one how scared she is.",
+      "speech": "Clipped, formal and cutting. Calls commoners 'you there' until they earn better, and never says please.",
+      "knowledge": [
+        {
+          "text": "You are travelling to the capital to testify before the crown, and powerful people would rather you never arrived.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Your testimony will ruin Lord Ashcombe, who has the gold and the reach to hire killers. You're certain he's behind any threat to you.",
+          "share_at_trust": 2,
+          "hint": "You turn icy and change the subject when asked who might want you dead."
+        },
+        {
+          "text": "On your first night here someone slid a note under your door: 'The river will not save you.' You burned it and told only Sir Kestrel.",
+          "share_at_trust": 3,
+          "hint": "Something has frightened you since you arrived, and you'd sooner die than admit it."
+        }
+      ],
+      "reactions": {
+        "flattery": 1,
+        "rude": -2,
+        "bribe": -1
+      }
     },
     {
       "id": "sir_kestrel",
@@ -77,7 +102,37 @@
       "occupation": "Knight of the duchess's escort",
       "location": "guest_rooms",
       "personality": "Dutiful and suspicious of everyone, including his own men.",
-      "notes": "Guards the duchess's door at night."
+      "notes": "Guards the duchess's door at night.",
+      "background": "Captain of the duchess's escort. He lost two men to the flood at the bridge and trusts the four he has left a little less every hour.",
+      "wants": "To get the duchess to the capital alive, and to find the threat among the travelers before it strikes.",
+      "speech": "Terse, soldierly sentences. Answers questions with questions and calls everyone 'traveler'.",
+      "knowledge": [
+        {
+          "text": "You stand guard outside the duchess's door every night yourself. Her meals go up on a tray, and one of your men carries it.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Your men change the guard on the duchess's carriage at the midnight bell.",
+          "share_at_trust": 1,
+          "hint": "You won't discuss the escort's routines with strangers."
+        },
+        {
+          "text": "One of your men, Dunstan, slips off at night. You suspect dice or drink but haven't caught him at it.",
+          "share_at_trust": 2,
+          "hint": "You get defensive if anyone questions your men."
+        },
+        {
+          "text": "On the night the bridge washed out you dozed off at your post for a few minutes. You've told no one, and the shame eats at you.",
+          "share_at_trust": 3,
+          "hint": "You insist, a little too firmly, that you have never once left your post."
+        }
+      ],
+      "reactions": {
+        "bribe": -2,
+        "flattery": -1,
+        "threat": -1,
+        "accusation": -2
+      }
     },
     {
       "id": "mara",
@@ -85,7 +140,37 @@
       "occupation": "Innkeeper",
       "location": "common_room",
       "personality": "Warm, nosy, and knows every guest's business.",
-      "notes": "Keeps the guest ledger and the room keys."
+      "notes": "Keeps the guest ledger and the room keys.",
+      "background": "Has run the Wayward Lantern for twenty years, the last five as a widow. Every room key, every tab and every bit of gossip passes through her hands.",
+      "wants": "A full inn, a peaceful storm, and no blood on her floorboards. And to know everyone's business, naturally.",
+      "speech": "Warm and chatty. Calls everyone 'love' or 'pet', and drops her voice for the juicy parts.",
+      "knowledge": [
+        {
+          "text": "The duchess has the corner suite and her escort have the rooms beside it. The travelers fill every other bed in the house.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "You keep the guest ledger and the only spare keys, on a ring at your belt day and night.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Wenna's bread comes in through the kitchen's back door before dawn, and that door's bar has been sticking.",
+          "share_at_trust": 1
+        },
+        {
+          "text": "You've been watering the ale since the storm cut off deliveries. You'd be mortified if it got out.",
+          "share_at_trust": 2,
+          "hint": "You get flustered and steer away from talk about the ale."
+        },
+        {
+          "text": "Sir Kestrel's man Dunstan creeps down to the stables most nights to play dice with Pell.",
+          "share_at_trust": 2,
+          "hint": "You know some gossip about the duchess's guards that you're dying to tell, but only to someone you like."
+        }
+      ],
+      "reactions": {
+        "flattery": 1
+      }
     },
     {
       "id": "pell",
@@ -93,7 +178,33 @@
       "occupation": "Stable boy",
       "location": "stables",
       "personality": "Eager, easily bribed, notices more than adults think.",
-      "notes": "Sleeps in the hayloft."
+      "notes": "Sleeps in the hayloft.",
+      "background": "An orphan of about twelve who sleeps in the hayloft and runs errands for anyone with a coin. Grown-ups forget he's there, which suits him.",
+      "wants": "Coin, a full belly, and for someone to take him seriously.",
+      "speech": "Quick and cheeky, full of country slang. Calls everyone 'm'lord' or 'm'lady' and trails off when he's nervous.",
+      "knowledge": [
+        {
+          "text": "You look after every horse in the stables, including the duchess's carriage team. Her knights guard the carriage in shifts.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "From the hayloft you can see the stable yard and the inn's back door. More people come and go at night than you'd think.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "The knights change the guard on the carriage at the midnight bell, and for a few minutes nobody watches it.",
+          "share_at_trust": 1,
+          "hint": "You know the guards' habits better than they'd like, but you don't give that away for nothing."
+        },
+        {
+          "text": "A rider in a fine grey cloak came through two days before the storm, asked which road the duchess would take, and paid you a whole silver to forget him.",
+          "share_at_trust": 2,
+          "hint": "You were paid to keep quiet about someone, and a deal's a deal... unless somebody makes it worth your while."
+        }
+      ],
+      "reactions": {
+        "bribe": 1
+      }
     },
     {
       "id": "captain_holt",
@@ -101,7 +212,29 @@
       "occupation": "Town guard captain",
       "location": "guardhouse",
       "personality": "Tired, practical, and short on men.",
-      "notes": "Keeps the duty roster for the town watch."
+      "notes": "Keeps the duty roster for the town watch.",
+      "background": "Captain of Hollowmere's tiny town watch. Half his men are stranded on the far side of the river and the rest are bailing out flooded cellars.",
+      "wants": "To get through the storm without a riot or a murder on his watch, and one full night's sleep.",
+      "speech": "Blunt and weary. Sighs a lot, keeps answers short, and has no patience for drama.",
+      "knowledge": [
+        {
+          "text": "With half the watch stranded across the river, you have three men left and none to spare for guarding the inn.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Nobody walks past the inn between the midnight bell and dawn. There's no one left to send.",
+          "share_at_trust": 1,
+          "hint": "You don't like admitting how thin the watch is stretched."
+        },
+        {
+          "text": "An old smugglers' tunnel runs from the inn's cellar to the crypt under the chapel. It's meant to be bricked up, but you've never checked.",
+          "share_at_trust": 2,
+          "hint": "You know an old secret about the inn's cellar, but that's watch business."
+        }
+      ],
+      "reactions": {
+        "bribe": -1
+      }
     },
     {
       "id": "aldric",
@@ -109,7 +242,31 @@
       "occupation": "Blacksmith",
       "location": "smithy",
       "personality": "Stubborn, protective of his daughter, distrustful of outsiders.",
-      "notes": "Sells blades and mends locks."
+      "notes": "Sells blades and mends locks.",
+      "background": "Hollowmere's blacksmith, a widower raising his daughter Elsie alone. He made the inn's locks and sells blades to anyone with coin.",
+      "wants": "To keep Elsie safe and keep outsiders' trouble away from his door.",
+      "speech": "Gruff and short. Says as little as he can, and softens only when someone is kind about Elsie.",
+      "knowledge": [
+        {
+          "text": "You fitted new locks on the inn's guest rooms last spring. Mara holds the only spare keys.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Your daughter Elsie keeps sneaking up to the inn to gawp at the duchess's fine carriage.",
+          "share_at_trust": 1,
+          "hint": "You worry about your daughter and don't want strangers asking after her."
+        },
+        {
+          "text": "A week before the storm, a man in a good grey cloak paid you to cut a copy of a key he brought. You didn't ask which door it opened. You needed the coin.",
+          "share_at_trust": 2,
+          "hint": "A job you did recently has been nagging at you, and you get short-tempered if anyone asks about keys or locks."
+        }
+      ],
+      "reactions": {
+        "threat": -3,
+        "flattery": -1,
+        "bribe": 1
+      }
     },
     {
       "id": "wenna",
@@ -117,7 +274,30 @@
       "occupation": "Baker",
       "location": "bakery",
       "personality": "Cheerful gossip who is up before anyone else.",
-      "notes": "Delivers bread to the inn's kitchen every dawn."
+      "notes": "Delivers bread to the inn's kitchen every dawn.",
+      "background": "The town baker. Every morning she carries bread to the inn's kitchen and every rumor back out again.",
+      "wants": "To be first with the news, and to sell every loaf before it goes stale.",
+      "speech": "Bubbly and fast. Hops between topics and loves a 'between you and me'.",
+      "knowledge": [
+        {
+          "text": "You deliver bread through the inn's kitchen door every morning before dawn. The duchess's breakfast is made from your bread.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "The duchess's tray is set out in the kitchen and sits on the side table until one of her men fetches it. Anyone passing through could get near it.",
+          "share_at_trust": 1,
+          "hint": "You know something about how the duchess's meals are handled that you'd only tell a friend."
+        },
+        {
+          "text": "The first morning after the storm broke, you found the kitchen's back door unbarred before dawn, though Mara swears she barred it.",
+          "share_at_trust": 2,
+          "hint": "You found something odd at the inn one morning, and you're bursting to tell someone you trust."
+        }
+      ],
+      "reactions": {
+        "flattery": 1,
+        "rude": -2
+      }
     },
     {
       "id": "old_tobias",
@@ -125,7 +305,33 @@
       "occupation": "Gravedigger",
       "location": "graveyard",
       "personality": "Gruff, superstitious, and fond of drink.",
-      "notes": "Dug a grave before the storm that nobody has been buried in yet."
+      "notes": "Dug a grave before the storm that nobody has been buried in yet.",
+      "background": "Hollowmere's gravedigger and chapel caretaker. Rarely sober, and convinced the storm is an omen.",
+      "wants": "A full bottle, a quiet graveyard, and nobody asking about the empty grave.",
+      "speech": "Gruff and rambling. Mutters about omens, slurs when he's had a drink, and calls everyone 'young 'un'.",
+      "knowledge": [
+        {
+          "text": "The storm's an ill omen. Ravens have sat on the chapel roof since the bridge went.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "You dug a fresh grave the day before the storm hit. Nobody's been buried in it.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Something scrapes about in the crypt under the chapel at night. You won't go down there.",
+          "share_at_trust": 1,
+          "hint": "The chapel crypt frightens you and you won't say why."
+        },
+        {
+          "text": "A rider in a fine grey cloak paid you three gold crowns in advance to dig that grave, 'for a lady who won't need her carriage much longer.' You've been drinking the money since.",
+          "share_at_trust": 2,
+          "hint": "You get jumpy and change the subject when anyone asks who the empty grave is for."
+        }
+      ],
+      "reactions": {
+        "bribe": 1
+      }
     }
   ]
 }

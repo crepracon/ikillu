@@ -8,6 +8,8 @@ const ChatRules = preload("res://chat/ChatRules.gd")
 const COLOR_SYSTEM := "#9a9a9a"
 const COLOR_WHISPER := "#c99be0"
 const COLOR_NAME := "#e8c37a"
+const COLOR_NPC := "#7fd1c2"
+const COLOR_NPC_QUIET := "#9fbfb9"
 
 var _connect_panel: VBoxContainer
 var _name_input: LineEdit
@@ -18,6 +20,7 @@ var _status: Label
 var _chat_panel: VBoxContainer
 var _log: RichTextLabel
 var _roster_list: ItemList
+var _npc_list: ItemList
 var _input: LineEdit
 
 
@@ -31,6 +34,9 @@ func _ready() -> void:
 	Network.chat_received.connect(_on_chat)
 	Network.whisper_received.connect(_on_whisper)
 	Network.system_message.connect(_on_system)
+	Network.npc_directory_changed.connect(_on_npc_directory)
+	Network.npc_asked.connect(_on_npc_asked)
+	Network.npc_replied.connect(_on_npc_replied)
 	_show_connect_panel()
 
 
@@ -101,7 +107,7 @@ func _build_ui() -> void:
 	body.add_child(_log)
 
 	var side_panel := VBoxContainer.new()
-	side_panel.custom_minimum_size = Vector2(180, 0)
+	side_panel.custom_minimum_size = Vector2(210, 0)
 	body.add_child(side_panel)
 	var roster_label := Label.new()
 	roster_label.text = "In the room"
@@ -110,6 +116,13 @@ func _build_ui() -> void:
 	_roster_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_roster_list.item_activated.connect(_on_roster_activated)
 	side_panel.add_child(_roster_list)
+	var npc_label := Label.new()
+	npc_label.text = "Townsfolk (double-click to ask)"
+	side_panel.add_child(npc_label)
+	_npc_list = ItemList.new()
+	_npc_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_npc_list.item_activated.connect(_on_npc_activated)
+	side_panel.add_child(_npc_list)
 	var leave_button := Button.new()
 	leave_button.text = "Leave"
 	leave_button.pressed.connect(func(): Network.leave())
@@ -119,7 +132,7 @@ func _build_ui() -> void:
 	input_row.add_theme_constant_override("separation", 8)
 	_chat_panel.add_child(input_row)
 	_input = LineEdit.new()
-	_input.placeholder_text = "Say something...   /w name message to whisper"
+	_input.placeholder_text = "Say something...   /w name message to whisper   /ask name question to talk to the townsfolk"
 	_input.max_length = ChatRules.MAX_MESSAGE_LENGTH
 	_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_input.text_submitted.connect(_on_text_submitted)
@@ -186,6 +199,7 @@ func _on_connected(assigned_name: String) -> void:
 
 func _on_disconnected(reason: String) -> void:
 	_roster_list.clear()
+	_npc_list.clear()
 	_status.text = reason
 	_show_connect_panel()
 
@@ -214,6 +228,27 @@ func _on_system(text: String) -> void:
 	_append_system(text)
 
 
+func _on_npc_directory(npcs: Array) -> void:
+	_npc_list.clear()
+	for npc in npcs:
+		var index := _npc_list.add_item(String(npc.get("name", "")))
+		_npc_list.set_item_metadata(index, String(npc.get("alias", "")))
+		_npc_list.set_item_tooltip(index, "%s, %s" % [npc.get("occupation", ""), npc.get("location", "")])
+
+
+func _on_npc_asked(npc_name: String, text: String) -> void:
+	_append("[color=%s][i]You ask %s:[/i] %s[/color]" % [
+		COLOR_NPC_QUIET, ChatRules.escape_bbcode(npc_name), ChatRules.escape_bbcode(text)])
+
+
+func _on_npc_replied(npc_name: String, action: String, text: String) -> void:
+	var line := "[color=%s][b]%s[/b][/color]" % [COLOR_NPC, ChatRules.escape_bbcode(npc_name)]
+	if action != "":
+		line += " [color=%s][i](%s)[/i][/color]" % [COLOR_NPC_QUIET, ChatRules.escape_bbcode(action)]
+	line += ": \"%s\"" % ChatRules.escape_bbcode(text)
+	_append(line)
+
+
 # --- Input -------------------------------------------------------------------
 
 func _on_text_submitted(text: String) -> void:
@@ -230,6 +265,13 @@ func _on_roster_activated(index: int) -> void:
 	if target == Network.my_name:
 		return
 	_input.text = "/w %s " % target
+	_input.caret_column = _input.text.length()
+	_input.grab_focus()
+
+
+## Double-clicking an NPC starts a question to them.
+func _on_npc_activated(index: int) -> void:
+	_input.text = "/ask %s " % _npc_list.get_item_metadata(index)
 	_input.caret_column = _input.text.length()
 	_input.grab_focus()
 

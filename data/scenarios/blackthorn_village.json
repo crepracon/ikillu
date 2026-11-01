@@ -3,7 +3,8 @@
   "setting": {
     "name": "Blackthorn Village",
     "town": "Blackthorn",
-    "summary": "A remote village cut off by strange events. Villagers have vanished, chanting drifts from the forest at night, and someone has been entering the old crypt."
+    "summary": "A remote village cut off by strange events. Villagers have vanished, chanting drifts from the forest at night, and someone has been entering the old crypt.",
+    "tone": "Dark folk horror: candlelight, whispered rumors, and a forest that sings at night. No modern words or ideas."
   },
   "target_npc": "",
   "locations": [
@@ -45,7 +46,29 @@
       "occupation": "Blacksmith",
       "location": "blacksmith",
       "personality": "Suspicious, stubborn, protective of his daughter.",
-      "notes": "Has a connection to the cult."
+      "notes": "Has a connection to the cult.",
+      "background": "Blackthorn's blacksmith, raising his daughter alone while villagers vanish one by one.",
+      "wants": "To keep his daughter safe and his secret buried.",
+      "speech": "Gruff and suspicious. Short answers, and bristles at questions.",
+      "knowledge": [
+        {
+          "text": "Villagers have been vanishing, and you keep your daughter indoors after dark.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Someone has been buying chain and iron nails from you by the sackful, always after dark.",
+          "share_at_trust": 1,
+          "hint": "You go quiet when asked who your recent customers were."
+        },
+        {
+          "text": "You've been forging curved ritual daggers for hooded buyers from the forest. They swore they'd take your daughter if you talked.",
+          "share_at_trust": 3,
+          "hint": "You turn defensive and frightened whenever anyone mentions the cult, the crypt, or missing weapons."
+        }
+      ],
+      "reactions": {
+        "threat": -3
+      }
     },
     {
       "id": "mara",
@@ -53,7 +76,27 @@
       "occupation": "Innkeeper",
       "location": "tavern",
       "personality": "Collects every rumor in the village.",
-      "notes": ""
+      "notes": "",
+      "background": "Runs the Rusty Griffin and hears every rumor in Blackthorn before breakfast.",
+      "wants": "To keep her tavern open and her regulars alive.",
+      "speech": "Brisk and talkative. Trades rumors like coins.",
+      "knowledge": [
+        {
+          "text": "Chanting drifts from the forest at night. Everyone at the Rusty Griffin talks about it and nobody goes looking.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Father Rowan used to drink here every evening but hasn't been in for a week.",
+          "share_at_trust": 1
+        },
+        {
+          "text": "Edwin the traveler came in white as a sheet two nights ago and has been begging for a way out of the village ever since.",
+          "share_at_trust": 1
+        }
+      ],
+      "reactions": {
+        "flattery": 1
+      }
     },
     {
       "id": "father_rowan",
@@ -61,7 +104,29 @@
       "occupation": "Priest",
       "location": "church",
       "personality": "Evasive and anxious.",
-      "notes": "Hiding something in the church."
+      "notes": "Hiding something in the church.",
+      "background": "Blackthorn's priest, keeper of the church and the old crypt beneath it.",
+      "wants": "To protect his flock, and to keep whatever is in the crypt out of the wrong hands.",
+      "speech": "Soft-spoken and evasive. Quotes scripture when cornered and stammers under pressure.",
+      "knowledge": [
+        {
+          "text": "The church has stood over the old crypt for three hundred years.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Someone has broken the seal on the crypt door. You found it cracked a week ago.",
+          "share_at_trust": 2,
+          "hint": "You're hiding something about the church and get flustered when pressed."
+        },
+        {
+          "text": "You took an old book of rites from the crypt and hid it under the altar, so whoever is using the crypt can't have it.",
+          "share_at_trust": 3,
+          "hint": "You watch the altar more closely than a priest should."
+        }
+      ],
+      "reactions": {
+        "accusation": -2
+      }
     },
     {
       "id": "edwin",
@@ -69,7 +134,24 @@
       "occupation": "Traveler",
       "location": "tavern",
       "personality": "Jumpy outsider who wants to leave.",
-      "notes": "Witnessed something near the crypt."
+      "notes": "Witnessed something near the crypt.",
+      "background": "An outsider who was passing through when the roads closed, and is desperate to leave.",
+      "wants": "To get out of Blackthorn alive and never come back.",
+      "speech": "Jumpy and fast. Glances over his shoulder and flinches at loud noises.",
+      "knowledge": [
+        {
+          "text": "Fallen trees have blocked the roads out of Blackthorn since the night you arrived.",
+          "share_at_trust": 0
+        },
+        {
+          "text": "Two nights ago you saw torchlight going down the steps to the crypt and heard chanting below.",
+          "share_at_trust": 1,
+          "hint": "You saw something frightening near the church, and you're terrified of getting involved."
+        }
+      ],
+      "reactions": {
+        "threat": -1
+      }
     }
   ]
 }
