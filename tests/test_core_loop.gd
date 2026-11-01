@@ -343,4 +343,5 @@ func _test_event_text() -> void:
 			sabotage_line = EventText.format_event(e, after)
 	_check(sabotage_line.contains("wakes up drugged"), "sabotage is narrated with the flavor name")
 	_check(EventText.phase_text("COUNCIL") != "", "phases have narration")
+	_check(EventText.phase_text("INVESTIGATION").contains("/ask"), "investigation tells players how to question NPCs")
 	_check(EventText.with_article("Cultist") == "a Cultist", "a/an for consonants")

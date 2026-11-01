@@ -75,8 +75,16 @@ numbers are on each mode, marked `DEFAULT`.
 | `game/EventText.gd` | Turns game events into narration in the chat log. |
 | `chat/ChatScreen.gd` | The chat room UI (built in code). |
 | `chat/ChatRules.gd`, `chat/RateLimiter.gd` | Name and message validation, commands, spam limits. |
+| `npc/NPCManager.gd` | All NPCs in a session: finding them by name, what the AI may know, applying replies by the rules. |
+| `npc/NPCState.gd` | One NPC: identity, knowledge, trust, memories, hearsay. |
+| `npc/NPCConfig.gd` | Trust, memory and conversation numbers. |
+| `narrative/NarrativeManager.gd` | Server-only node that calls the Claude API, with retries and scripted fallback. |
+| `narrative/NarrativeRequest.gd` | Builds the prompt and the reply's JSON schema. |
+| `narrative/NarrativeResponse.gd` | Checks and cleans the AI's reply. |
+| `narrative/NarrativeSettings.gd` | API key, model and endpoint settings. |
 | `tests/test_core_loop.gd` | Headless tests that play full games in both modes. |
 | `tests/test_chat_rules.gd` | Headless tests for chat validation. |
+| `tests/test_npc_dialogue.gd` | Headless tests for NPC knowledge, trust, memory, prompts and the AI client. |
 
 ## Playing the demo
 
@@ -84,7 +92,8 @@ numbers are on each mode, marked `DEFAULT`.
 2. The **room leader** (★ in the player list: whoever has been in the room longest) clicks **Start game**.
 3. Everyone gets a secret role and a class. Assassins learn the target and their allies.
 4. The leader clicks **Next phase ▶** to move through each day:
-   - **Morning, Investigation, Social:** talk it over. (Exploring the inn and finding clues comes next.)
+   - **Morning, Social:** talk it over.
+   - **Investigation:** question the townsfolk with `/ask name question` (see *Talking to the townsfolk* below). Each conversation costs 1 action point. (Exploring the inn and finding clues comes next.)
    - **Council:** everyone picks someone to accuse, or abstains, and clicks **Vote**. You can change your vote until the leader moves on. A majority unmasks someone.
    - **Night:** public chat closes. The assassins pick tonight's move: advance the contract, or drug or mislead a traveler.
 5. The game ends when the contract hits 5 or every assassin is unmasked. Everyone sees who the assassins were, and the leader clicks **Back to lobby**.
@@ -117,6 +126,7 @@ godot --headless --path . -- --server --port=8910
 **In the room:**
 - Type to talk to everyone.
 - `/w name message` whispers privately. Double-clicking a name in the list starts one.
+- `/ask name question` talks to one of the townsfolk (see below). `/npcs` lists them.
 - Names are letters, numbers, `-` and `_`. Duplicate names get a number added.
 
 **How it's secured:** the server is the only authority. Clients can only ask to join or
@@ -127,6 +137,84 @@ nobody can inject formatting into other players' chat logs.
 The code is in `autoload/Network.gd` (connections and server logic), `chat/ChatScreen.gd` (UI),
 and `chat/ChatRules.gd` (validation).
 
+## Talking to the townsfolk (AI NPCs)
+
+NPCs answer in their own voice, powered by Claude. Each one remembers every player separately,
+warms up or sours depending on how they're treated, keeps secrets until they trust you, and
+passes on gossip, all inside the world of the scenario.
+
+**Try it:** in the chat room, double-click a name under *Townsfolk*, or type
+`/ask mara who has the corner suite?`. Answers are private to you, so you can share them
+honestly, twist them, or keep them to yourself.
+
+**Turn the AI on.** Only the machine running the server needs this (the host, or the dedicated
+server). Players who join need nothing.
+
+1. Get an API key from the Claude Console at [platform.claude.com](https://platform.claude.com/).
+2. Set it as an environment variable, then start Godot:
+   - Windows: `setx ANTHROPIC_API_KEY "sk-ant-..."`, then restart the Godot editor.
+   - macOS/Linux: `export ANTHROPIC_API_KEY="sk-ant-..."` in the shell you launch Godot from.
+
+   Or put it in `user://narrative.cfg` (in the editor: *Project → Open User Data Folder*):
+   ```
+   [narrative]
+   api_key="sk-ant-..."
+   ```
+3. **Never put the key in the project folder.** Everything in `res://` ships inside exported
+   games, so every player would get a copy.
+
+Without a key, NPCs give short scripted brush-offs and everything else still works. The server
+log says which mode it's in.
+
+The default model is Claude Haiku 5.5 (`claude-haiku-5-5`), the fastest current Claude model. At
+$0.10 per million input tokens and $0.50 per million output tokens (November 2026), a typical
+reply costs about $0.0003. Change it with `HOLLOW_NPC_MODEL` or `model=` in `narrative.cfg`. For a
+public server, `HOLLOW_NPC_API_URL` can point at a small service that holds the key itself (the
+narrative backend from the design doc), so the game server never needs it.
+
+**How it stays fair.** The design doc's rule: the AI is the storyteller, not the referee.
+
+| | Decided by |
+| --- | --- |
+| What an NPC says | The AI |
+| What an NPC knows | Scenario data and game code. A secret (`share_at_trust`) only enters the prompt once the player has enough trust, so nobody can trick it out early. |
+| Trust | Game code. The AI only labels how the player spoke (friendly, flattery, bribe, rude, accusation, threat). `NPCConfig.DEFAULT_REACTIONS` and each NPC's `reactions` turn that into a change, at most +1 per NPC per day. |
+| Who the traitors are | Never sent. NPCs can't leak roles they were never told. A test checks that a traitor's NPC context is identical to an innocent's. |
+| Town news | Public events only (sabotage, council results), plus plot progress as a mood. |
+| Gossip | What players claim about others becomes hearsay the NPC may repeat, with who said it, marked as unverified. |
+
+NPCs are told not to invent evidence: they can have hunches and gossip, but never claim to have
+seen something that isn't in their notes. Every reply is checked before use (fixed JSON shape,
+length caps, labels from fixed lists). A reply that breaks character gets one retry, then a
+scripted line.
+
+**In a game vs. the lobby.** During a game, NPCs can only be questioned in the Investigation
+phase. The first message to an NPC each day costs 1 action point and opens a conversation of 4
+messages (`NPCConfig.MESSAGES_PER_CONVERSATION`, DEFAULT). Each game starts the townsfolk fresh,
+with no memories of earlier games. In the lobby, anyone can chat with them for free (up to
+`NPCConfig.SANDBOX_MESSAGE_LIMIT` messages per player per session), which is handy for testing
+characters. In code, a game message goes `request_npc_message()` → `npc_dialogue_context()` →
+`NarrativeManager.reply()` → `record_npc_reply()` (see `autoload/Game.gd` and
+`autoload/Network.gd`).
+
+**Writing NPCs.** Fields in the scenario JSON:
+
+```json
+"background": "Who they are and what everyone knows about them.",
+"wants": "What they're after.",
+"speech": "How they talk.",
+"knowledge": [
+  {"text": "Shared with anyone who asks.", "share_at_trust": 0},
+  {"text": "A secret.", "share_at_trust": 2, "hint": "How they act while hiding it."}
+],
+"reactions": {"bribe": 1, "threat": -3}
+```
+
+`notes` is for designers and never reaches the AI. The Wayward Lantern's secrets are
+placeholders that cross-check each other (the grey-cloaked rider, the cellar tunnel, the
+midnight guard change); rewrite them freely. Game code can add knowledge mid-game with
+`NPCState.learn(text, share_at_trust, hint)`, for example to give a witness what they saw at night.
+
 ## Running the tests
 
 From the project folder:
@@ -134,15 +222,18 @@ From the project folder:
 ```
 godot --headless --script res://tests/test_core_loop.gd
 godot --headless --script res://tests/test_chat_rules.gd
+godot --headless --script res://tests/test_npc_dialogue.gd
 ```
+
+The NPC tests use a fake AI connection, so they need no API key or network.
 
 Each prints PASS/FAIL per check and exits with code 1 if anything fails.
 
 ## Not built yet
 
 - Exploring the inn: moving between locations, investigating, and finding clues (so action points matter).
+- Night actions that leave something for NPC witnesses to notice, so the townsfolk can hold real clues about the assassins.
 - Assassin daytime actions.
 - Phase timers or "everyone's ready" instead of the leader advancing manually.
 - Rejoining after a disconnect. A player who leaves mid-game still counts toward the vote majority.
 - Export settings. Add `*.json` to the export filter so scenario files are included.
-- NPC dialogue and memory, and the AI narrative service.

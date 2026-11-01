@@ -47,7 +47,9 @@ static func unique_name(wanted: String, taken: Array) -> String:
 ## Turns raw input into a command:
 ##   { "type": "say", "text": ... }
 ##   { "type": "whisper", "target": ..., "text": ... }
-##   { "type": "team", "text": ... }   (/a: private chat with your allies)
+##   { "type": "team", "text": ... }                 (/a: private chat with your allies)
+##   { "type": "ask", "target": ..., "text": ... }   talk to an NPC
+##   { "type": "npcs" }                              list the NPCs
 ##   { "type": "error", "text": ... }
 ##   { "type": "empty" }
 static func parse(raw: String) -> Dictionary:
@@ -59,27 +61,35 @@ static func parse(raw: String) -> Dictionary:
 
 	var space := text.find(" ")
 	var command := text.substr(1, space - 1 if space > 0 else -1).to_lower()
+	var rest := text.substr(space + 1).strip_edges() if space > 0 else ""
 	if command == "w" or command == "whisper":
-		var rest := text.substr(space + 1).strip_edges() if space > 0 else ""
-		var split := rest.find(" ")
-		if split <= 0:
-			return {"type": "error", "text": "Usage: /w name message"}
-		var body := rest.substr(split + 1).strip_edges()
-		if body == "":
-			return {"type": "error", "text": "Usage: /w name message"}
-		return {"type": "whisper", "target": rest.substr(0, split), "text": body}
+		return _target_and_text("whisper", rest, "Usage: /w name message")
+	if command == "ask" or command == "talk":
+		return _target_and_text("ask", rest, "Usage: /ask name question  (/npcs lists the townsfolk)")
+	if command == "npcs" or command == "townsfolk":
+		return {"type": "npcs"}
 	if command == "a":
-		var team_text := text.substr(space + 1).strip_edges() if space > 0 else ""
-		if team_text == "":
+		if rest == "":
 			return {"type": "error", "text": "Usage: /a message"}
-		return {"type": "team", "text": team_text}
+		return {"type": "team", "text": rest}
 	return {"type": "error", "text": unknown_command_text(command)}
 
 
 ## Shared so the server can answer "/a" from a non-traitor exactly like any
 ## unknown command, without revealing that the command exists.
 static func unknown_command_text(command: String) -> String:
-	return "Unknown command /%s. Try /w name message." % command
+	return "Unknown command /%s. Try /w name message, /ask name question, or /npcs." % command
+
+
+## "name the rest of the message" -> { type, target, text }, or a usage error.
+static func _target_and_text(kind: String, rest: String, usage: String) -> Dictionary:
+	var split := rest.find(" ")
+	if split <= 0:
+		return {"type": "error", "text": usage}
+	var body := rest.substr(split + 1).strip_edges()
+	if body == "":
+		return {"type": "error", "text": usage}
+	return {"type": kind, "target": rest.substr(0, split), "text": body}
 
 
 ## Makes player text safe to show in a RichTextLabel with BBCode on, so

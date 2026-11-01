@@ -280,6 +280,40 @@ func team_recipients(peer_id: int) -> Array:
 	return _session.state.traitor_ids()
 
 
+# --- NPC conversations (asked by Network on the server) ----------------------------
+# Network runs the conversation (it owns the AI and the chat RPCs); the game
+# decides whether a message is allowed and records what came of it.
+
+## The running game's townsfolk, or null in the lobby (where Network lets
+## everyone chat with its own cast for free).
+func npc_manager():
+	return _session.npcs if _session != null else null
+
+
+## Applies the game's rules to one message to an NPC: the right phase, and an
+## action point to open a conversation. {"ok": true} in the lobby.
+func begin_npc_message(peer_id: int, npc_id: String) -> Dictionary:
+	if _session == null:
+		return {"ok": true}
+	if not _session.state.players.has(peer_id):
+		return {"ok": false, "error": "You're watching this game, so you can't question the townsfolk."}
+	var result: Dictionary = _session.request_npc_message(peer_id, npc_id)
+	if result["ok"] and result.get("opened", false):
+		_send_to(peer_id, "_rpc_state", [_view_for(peer_id)]) # shows the spent action point
+	return result
+
+
+## What the AI may know for this NPC's reply, built from the game's public state.
+func npc_context(peer_id: int, npc_id: String) -> Dictionary:
+	return _session.npc_dialogue_context(peer_id, npc_id) if _session != null else {}
+
+
+## Records a validated reply in the game: NPC memory, trust, and the event log.
+func finish_npc_message(peer_id: int, npc_id: String, player_text: String, reply: Dictionary) -> void:
+	if _session != null:
+		_session.record_npc_reply(peer_id, npc_id, player_text, reply)
+
+
 # --- Client logic ------------------------------------------------------------------
 
 func _apply_state(view: Dictionary) -> void:

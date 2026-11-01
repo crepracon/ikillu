@@ -70,6 +70,15 @@ func _test_parse() -> void:
 	_check(team["type"] == "team" and team.get("text") == "she's in the corner suite", "/a is ally chat")
 	_check(ChatRules.parse("/a")["type"] == "error", "/a without text is an error")
 	_check(ChatRules.unknown_command_text("a") == ChatRules.parse("/zzz")["text"].replace("zzz", "a"), "/a rejection looks like any unknown command")
+	var ask := ChatRules.parse("/ask mara who has the corner suite?")
+	_check(ask["type"] == "ask", "/ask talks to an NPC")
+	_check(ask.get("target") == "mara", "NPC name parsed")
+	_check(ask.get("text") == "who has the corner suite?", "question parsed")
+	_check(ChatRules.parse("/talk Pell got a minute?")["type"] == "ask", "/talk also works")
+	_check(ChatRules.parse("/ask mara")["type"] == "error", "ask without a question is an error")
+	_check(ChatRules.parse("/ask")["type"] == "error", "bare /ask is an error")
+	_check(ChatRules.parse("/npcs")["type"] == "npcs", "/npcs lists the townsfolk")
+	_check(ChatRules.parse("/townsfolk")["type"] == "npcs", "/townsfolk also works")
 
 
 func _test_escape() -> void:

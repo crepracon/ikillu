@@ -14,6 +14,7 @@ const VotingSystemScript = preload("res://systems/VotingSystem.gd")
 const NightSystemScript = preload("res://systems/NightSystem.gd")
 const ScenarioLoader = preload("res://scenarios/ScenarioLoader.gd")
 const AssassinsMode = preload("res://modes/AssassinsMode.gd")
+const NPCManagerScript = preload("res://npc/NPCManager.gd")
 
 const Phase = GamePhaseScript.Phase
 const Action = GamePhaseScript.Action
@@ -22,6 +23,10 @@ const ABSTAIN = VotingSystemScript.ABSTAIN
 ## my_vote value in a player's view when they haven't voted yet.
 const NO_VOTE := -2
 
+## Public events NPCs gossip about, and how many they remember.
+const TOWN_NEWS_TYPES := ["sabotage", "wrong_accusation", "traitor_unmasked"]
+const TOWN_NEWS_LIMIT := 6
+
 signal phase_changed(old_phase: int, new_phase: int)
 signal game_over(winner: int, reason: String)
 
@@ -29,6 +34,8 @@ var state
 var phase
 var voting
 var night
+## The scenario's NPCs: what they know and think of each player.
+var npcs
 var rng := RandomNumberGenerator.new()
 ## Players needed to start. The network layer lowers this for test games.
 var min_players := Config.MIN_PLAYERS
@@ -44,6 +51,7 @@ func _init(mode = null, session_id := "", fixed_seed := 0) -> void:
 
 	state.mode = mode if mode != null else AssassinsMode.new()
 	state.scenario = ScenarioLoader.load_scenario(state.mode.scenario_path)
+	npcs = NPCManagerScript.new(state.scenario)
 
 	if fixed_seed == 0:
 		rng.randomize()
@@ -190,6 +198,89 @@ func submit_traitor_action(player_id: int, action: int, target_id := -1, effect 
 	return _ok()
 
 
+# --- Talking to NPCs ---------------------------------------------------------
+# The flow for one message (the network layer does the async AI call between
+# steps 2 and 3):
+#   1. request_npc_message()   checks the rules and spends action points
+#   2. npc_dialogue_context()  gathers what the AI may know
+#   3. record_npc_reply()      applies the validated reply by the rules
+
+## Checks whether a player may send an NPC a message right now. The first
+## message to an NPC each day opens a conversation, which costs TALK_TO_NPC's
+## action points and allows NPCConfig.MESSAGES_PER_CONVERSATION messages.
+## When movement exists, this should also require being at the NPC's location.
+func request_npc_message(player_id: int, npc_id: String) -> Dictionary:
+	if not state.players.has(player_id):
+		return _err("Unknown player.")
+	if not npcs.has_npc(npc_id):
+		return _err("Nobody by that name is here.")
+	if not phase.is_allowed(Action.TALK_TO_NPC):
+		return _err("The townsfolk can only be questioned during the investigation phase.")
+	var key := str(player_id)
+	var opened := false
+	if not npcs.has_open_conversation(key, npc_id):
+		var spent: Dictionary = perform_action(player_id, Action.TALK_TO_NPC, npc_id)
+		if not spent["ok"]:
+			return spent
+		npcs.open_conversation(key, npc_id)
+		opened = true
+	var left: int = npcs.use_message(key, npc_id)
+	return _ok({"opened": opened, "messages_left": left, "action_points_left": state.players[player_id].action_points})
+
+
+## Everything the AI may know for this NPC's reply to this player. Built only
+## from public state plus the NPC's own knowledge, so no reply can reveal a
+## role, a night action, or the traitors' target.
+func npc_dialogue_context(player_id: int, npc_id: String) -> Dictionary:
+	var p = state.players.get(player_id)
+	if p == null or not npcs.has_npc(npc_id):
+		return {}
+	var pub: Dictionary = p.to_public(state.mode)
+	var player := {
+		"name": pub["name"],
+		"class": String(pub["class"]).capitalize(),
+		"effects": pub["effects"],
+		"unmasked": pub["unmasked"],
+		"unmasked_as": state.mode.traitor_faction_label if pub["unmasked"] else "",
+	}
+	var tension := -1.0
+	if state.mode.plot_progress_public and state.mode.plot_target > 0:
+		tension = clampf(float(state.plot_progress) / state.mode.plot_target, 0.0, 1.0)
+	var town := {
+		"day": state.day,
+		"tension": tension,
+		"news": _town_news(),
+		"innocent_label": state.mode.innocent_faction_label,
+		"traitor_label": state.mode.traitor_faction_label,
+	}
+	return npcs.dialogue_context(npc_id, str(player_id), player, town)
+
+
+## Applies a validated reply (see narrative/NarrativeResponse.gd): the NPC
+## remembers the exchange, and trust changes by the rules. The conversation
+## goes in the event log for that player only.
+func record_npc_reply(player_id: int, npc_id: String, player_text: String, reply: Dictionary) -> Dictionary:
+	var p = state.players.get(player_id)
+	if p == null or not npcs.has_npc(npc_id):
+		return _err("Unknown player or NPC.")
+	var result: Dictionary = npcs.apply_reply(npc_id, str(player_id), p.display_name, player_text, reply)
+	state.log_event("npc_conversation", {
+		"npc": npc_id,
+		"player": player_id,
+		"said": player_text,
+		"action": reply.get("action", ""),
+		"reply": reply.get("dialogue", ""),
+	}, [player_id])
+	state.log_event("npc_trust", {
+		"npc": npc_id,
+		"player": player_id,
+		"approach": reply.get("approach", "neutral"),
+		"change": result["trust_change"],
+		"trust": result["trust"],
+	}, "server")
+	return _ok(result)
+
+
 # --- Views -------------------------------------------------------------------
 
 func get_public_state() -> Dictionary:
@@ -220,7 +311,27 @@ func _begin_day() -> void:
 	state.day += 1
 	for p in state.players.values():
 		p.start_new_day()
+	npcs.start_day(state.day)
 	state.log_event("day_started", {"day": state.day})
+
+
+## Public events the townsfolk would have heard about, newest last.
+## Only "public" entries from the event log; nothing private can leak in.
+func _town_news() -> Array:
+	var news := []
+	for e in state.event_log:
+		var v = e["visibility"]
+		if typeof(v) != TYPE_STRING or v != "public" or not e["type"] in TOWN_NEWS_TYPES:
+			continue
+		var who_id = e["data"].get("target", e["data"].get("player", -1))
+		var who = state.players.get(who_id)
+		news.append({
+			"day": e["day"],
+			"type": e["type"],
+			"player": who.display_name if who != null else "someone",
+			"effect": e["data"].get("effect", ""),
+		})
+	return news.slice(maxi(news.size() - TOWN_NEWS_LIMIT, 0))
 
 
 func _resolve_council() -> void:
