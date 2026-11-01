@@ -53,6 +53,14 @@ func is_over() -> bool:
 	return winner != NO_WINNER
 
 
+## Display name of a scenario NPC, or the id if it isn't found.
+func npc_name(npc_id: String) -> String:
+	for npc in scenario.get("npcs", []):
+		if npc.get("id", "") == npc_id:
+			return npc.get("name", npc_id)
+	return npc_id
+
+
 func events_visible_to(player_id: int) -> Array:
 	var visible := []
 	for e in event_log:
@@ -80,6 +88,9 @@ func get_public_state() -> Dictionary:
 	if mode.plot_progress_public:
 		data["plot_progress"] = plot_progress
 		data["plot_target"] = mode.plot_target
+	if is_over():
+		# The game's finished, so reveal who the traitors were.
+		data["revealed_traitors"] = traitor_ids()
 	return data
 
 
@@ -95,4 +106,5 @@ func get_private_state(player_id: int) -> Dictionary:
 		data["plot_progress"] = plot_progress
 		data["plot_target"] = mode.plot_target
 		data["plot_target_npc"] = scenario.get("target_npc", "")
+		data["plot_target_name"] = npc_name(scenario.get("target_npc", ""))
 	return data

@@ -55,12 +55,19 @@ func effect_label(effect: int) -> String:
 	return effect_labels.get(effect, Enums.effect_name(effect))
 
 
-## Summary safe to show everyone.
+## Labels and summary safe to show everyone. None of this reveals who is on
+## which side.
 func to_public() -> Dictionary:
 	return {
 		"id": id,
 		"name": display_name,
 		"description": description,
 		"innocent_faction": innocent_faction_label,
+		"traitor_faction": traitor_faction_label,
+		"innocent_role": innocent_role_label,
+		"traitor_role": traitor_role_label,
 		"plot": plot_label,
+		"advance_action": advance_action_label,
+		"sabotage_action": sabotage_action_label,
+		"effect_labels": effect_labels.duplicate(),
 	}
