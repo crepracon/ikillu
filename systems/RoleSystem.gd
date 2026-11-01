@@ -1,23 +1,23 @@
 extends RefCounted
 ## Assigns secret roles. Classes are chosen separately in the lobby, so any
-## class can end up in either faction.
+## class can end up on either side.
 
 const Enums = preload("res://core/Enums.gd")
 const Config = preload("res://core/GameConfig.gd")
 
 
-## Sets PlayerState.role on each player and returns the cultist ids.
+## Sets PlayerState.role on each player and returns the traitor ids.
 ## Uses the session RNG so the same seed always gives the same roles.
 static func assign_roles(players: Dictionary, rng: RandomNumberGenerator) -> Array:
 	var ids: Array = players.keys()
 	ids.sort() # Dictionary order isn't guaranteed; sort before shuffling.
 	_shuffle(ids, rng)
 
-	var cult_count := Config.cultist_count_for(ids.size())
-	var cultists := ids.slice(0, cult_count)
+	var traitor_count := Config.traitor_count_for(ids.size())
+	var traitors := ids.slice(0, traitor_count)
 	for pid in ids:
-		players[pid].role = Enums.Role.CULTIST if pid in cultists else Enums.Role.VILLAGER
-	return cultists
+		players[pid].role = Enums.Role.TRAITOR if pid in traitors else Enums.Role.INNOCENT
+	return traitors
 
 
 ## Fisher-Yates using the session RNG (Array.shuffle() uses the global RNG).

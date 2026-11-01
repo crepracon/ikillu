@@ -7,10 +7,10 @@ const Config = preload("res://core/GameConfig.gd")
 var id: int
 var display_name: String
 var character_class: int
-var role: int = Enums.Role.VILLAGER
-## True once the village has correctly exposed this player as a cultist.
-## Exposed cultists stay in the game but lose their vote and night powers.
-var exposed := false
+var role: int = Enums.Role.INNOCENT
+## True once the innocents have correctly unmasked this player as a traitor.
+## Unmasked traitors stay in the game but lose their vote and night actions.
+var unmasked := false
 var action_points := 0
 ## StatusEffect -> days remaining.
 var status_effects := {}
@@ -23,11 +23,15 @@ func _init(p_id: int, p_name: String, p_class: int) -> void:
 
 
 func faction() -> int:
-	return Enums.Faction.CULT if role == Enums.Role.CULTIST else Enums.Faction.VILLAGE
+	return Enums.Faction.TRAITOR if role == Enums.Role.TRAITOR else Enums.Faction.INNOCENT
 
 
-func is_active_cultist() -> bool:
-	return role == Enums.Role.CULTIST and not exposed
+func is_traitor() -> bool:
+	return role == Enums.Role.TRAITOR
+
+
+func is_active_traitor() -> bool:
+	return is_traitor() and not unmasked
 
 
 func has_effect(effect: int) -> bool:
@@ -54,28 +58,25 @@ func end_day() -> void:
 			status_effects.erase(effect)
 
 
-func effect_names() -> Array:
-	var names := []
-	for effect in status_effects.keys():
-		names.append(Enums.effect_name(effect))
-	return names
-
-
 ## What every player is allowed to see about this player.
-func to_public() -> Dictionary:
+func to_public(mode) -> Dictionary:
+	var effects := []
+	for effect in status_effects.keys():
+		effects.append(mode.effect_label(effect))
 	return {
 		"id": id,
 		"name": display_name,
 		"class": Enums.class_label(character_class),
-		"exposed_as_cultist": exposed,
-		"effects": effect_names(),
+		"unmasked": unmasked,
+		"effects": effects,
 	}
 
 
 ## What only this player is allowed to see about themselves.
-func to_private() -> Dictionary:
-	var data := to_public()
-	data["role"] = Enums.role_name(role)
-	data["faction"] = Enums.faction_name(faction())
+func to_private(mode) -> Dictionary:
+	var data := to_public(mode)
+	data["role"] = mode.role_label(role)
+	data["faction"] = mode.faction_label(faction())
+	data["is_traitor"] = is_traitor()
 	data["action_points"] = action_points
 	return data

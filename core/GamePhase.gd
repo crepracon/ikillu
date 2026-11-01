@@ -14,7 +14,7 @@ enum Action {
 	PRIVATE_CHAT,
 	SHARE_EVIDENCE,
 	VOTE,
-	CULT_ACTION,
+	TRAITOR_ACTION,
 }
 
 ## The day loop. NIGHT wraps back to MORNING.
@@ -36,7 +36,7 @@ const ALLOWED := {
 	],
 	Phase.SOCIAL: [Action.PUBLIC_CHAT, Action.PRIVATE_CHAT, Action.SHARE_EVIDENCE],
 	Phase.COUNCIL: [Action.PUBLIC_CHAT, Action.VOTE],
-	Phase.NIGHT: [Action.CULT_ACTION],
+	Phase.NIGHT: [Action.TRAITOR_ACTION],
 	Phase.GAME_OVER: [Action.PUBLIC_CHAT],
 }
 

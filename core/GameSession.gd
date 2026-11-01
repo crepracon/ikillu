@@ -12,10 +12,12 @@ const PlayerStateScript = preload("res://core/PlayerState.gd")
 const RoleSystem = preload("res://systems/RoleSystem.gd")
 const VotingSystemScript = preload("res://systems/VotingSystem.gd")
 const NightSystemScript = preload("res://systems/NightSystem.gd")
+const ScenarioLoader = preload("res://scenarios/ScenarioLoader.gd")
+const AssassinsMode = preload("res://modes/AssassinsMode.gd")
 
 const Phase = GamePhaseScript.Phase
 const Action = GamePhaseScript.Action
-const CultAction = NightSystemScript.CultAction
+const TraitorAction = NightSystemScript.TraitorAction
 const ABSTAIN = VotingSystemScript.ABSTAIN
 
 signal phase_changed(old_phase: int, new_phase: int)
@@ -28,12 +30,16 @@ var night
 var rng := RandomNumberGenerator.new()
 
 
-## Pass a nonzero seed to make role assignment repeatable (useful for tests).
-func _init(session_id := "", fixed_seed := 0) -> void:
+## mode: a GameMode instance. Defaults to Assassins at the Wayward Lantern.
+## fixed_seed: nonzero makes role assignment repeatable (useful for tests).
+func _init(mode = null, session_id := "", fixed_seed := 0) -> void:
 	state = GameStateScript.new()
 	phase = GamePhaseScript.new()
 	voting = VotingSystemScript.new()
 	night = NightSystemScript.new()
+
+	state.mode = mode if mode != null else AssassinsMode.new()
+	state.scenario = ScenarioLoader.load_scenario(state.mode.scenario_path)
 
 	if fixed_seed == 0:
 		rng.randomize()
@@ -66,10 +72,14 @@ func start_game() -> Dictionary:
 	if state.players.size() < Config.MIN_PLAYERS:
 		return _err("Need at least %d players." % Config.MIN_PLAYERS)
 
-	var cultists: Array = RoleSystem.assign_roles(state.players, rng)
-	state.log_event("roles_assigned", {"cultists": cultists}, "server")
-	for pid in cultists:
-		state.log_event("you_are_cultist", {"allies": cultists}, [pid])
+	var traitors: Array = RoleSystem.assign_roles(state.players, rng)
+	state.log_event("roles_assigned", {"traitors": traitors}, "server")
+	for pid in traitors:
+		state.log_event("you_are_traitor", {
+			"role": state.mode.traitor_role_label,
+			"allies": traitors,
+			"target_npc": state.scenario.get("target_npc", ""),
+		}, [pid])
 
 	phase.advance() # LOBBY -> MORNING
 	_begin_day()
@@ -117,8 +127,8 @@ func perform_action(player_id: int, action: int, target := "") -> Dictionary:
 	var p = state.players.get(player_id)
 	if p == null:
 		return _err("Unknown player.")
-	if action == Action.VOTE or action == Action.CULT_ACTION:
-		return _err("Use cast_vote() or submit_cult_action() for that.")
+	if action == Action.VOTE or action == Action.TRAITOR_ACTION:
+		return _err("Use cast_vote() or submit_traitor_action() for that.")
 	if not phase.is_allowed(action):
 		return _err("%s isn't allowed during %s." % [
 			GamePhaseScript.action_name(action), GamePhaseScript.phase_name(phase.current)])
@@ -140,36 +150,36 @@ func cast_vote(voter_id: int, target_id: int) -> Dictionary:
 		return _err("Unknown player.")
 	if not phase.is_allowed(Action.VOTE):
 		return _err("Voting only happens at council.")
-	if voter.exposed:
-		return _err("Exposed cultists can't vote.")
+	if voter.unmasked:
+		return _err("Unmasked %s can't vote." % state.mode.traitor_faction_label.to_lower())
 	if target_id != ABSTAIN:
 		if not state.players.has(target_id):
 			return _err("Unknown target.")
 		if target_id == voter_id:
 			return _err("You can't accuse yourself.")
-		if state.players[target_id].exposed:
-			return _err("That player has already been exposed.")
+		if state.players[target_id].unmasked:
+			return _err("That player has already been unmasked.")
 	voting.cast(voter_id, target_id)
 	return _ok()
 
 
-func submit_cult_action(player_id: int, action: int, target_id := -1, effect := -1) -> Dictionary:
+func submit_traitor_action(player_id: int, action: int, target_id := -1, effect := -1) -> Dictionary:
 	var p = state.players.get(player_id)
 	if p == null:
 		return _err("Unknown player.")
-	if not phase.is_allowed(Action.CULT_ACTION):
-		return _err("Cult actions only happen at night.")
-	if not p.is_active_cultist():
-		return _err("Only active cultists can do that.")
-	if action == CultAction.HEX:
+	if not phase.is_allowed(Action.TRAITOR_ACTION):
+		return _err("That can only be done at night.")
+	if not p.is_active_traitor():
+		return _err("Only active %s can do that." % state.mode.traitor_faction_label.to_lower())
+	if action == TraitorAction.SABOTAGE:
 		if not state.players.has(target_id):
-			return _err("Unknown hex target.")
+			return _err("Unknown sabotage target.")
 		if target_id == player_id:
-			return _err("You can't hex yourself.")
+			return _err("You can't sabotage yourself.")
 		if effect < 0 or effect >= Enums.StatusEffect.size():
 			return _err("Unknown effect.")
-	elif action != CultAction.ADVANCE_RITUAL:
-		return _err("Unknown cult action.")
+	elif action != TraitorAction.ADVANCE_PLOT:
+		return _err("Unknown action.")
 	night.submit(player_id, action, target_id, effect)
 	return _ok()
 
@@ -200,7 +210,7 @@ func _begin_day() -> void:
 func _resolve_council() -> void:
 	var eligible := 0
 	for p in state.players.values():
-		if not p.exposed:
+		if not p.unmasked:
 			eligible += 1
 	var result: Dictionary = voting.tally(eligible)
 	var accused: int = result["accused"]
@@ -210,35 +220,39 @@ func _resolve_council() -> void:
 		return
 
 	var target = state.players[accused]
-	if target.role == Enums.Role.CULTIST:
-		target.exposed = true
-		state.log_event("cultist_exposed", {"player": accused, "counts": result["counts"]})
-		if state.active_cultist_ids().is_empty():
-			_end_game(Enums.Faction.VILLAGE, "Every cultist was exposed.")
+	if target.is_traitor():
+		target.unmasked = true
+		state.log_event("traitor_unmasked", {
+			"player": accused,
+			"role": state.mode.traitor_role_label,
+			"counts": result["counts"],
+		})
+		if state.active_traitor_ids().is_empty():
+			_end_game(Enums.Faction.INNOCENT, state.mode.innocent_win_text)
 	else:
-		state.ritual_progress += Config.WRONG_ACCUSATION_RITUAL_BONUS
+		state.plot_progress += state.mode.wrong_accusation_bonus
 		state.log_event("wrong_accusation", {
 			"player": accused,
 			"counts": result["counts"],
-			"ritual_progress": state.ritual_progress,
+			"plot_progress": state.plot_progress,
 		})
-		_check_ritual()
+		_check_plot()
 
 
 func _resolve_night() -> void:
 	night.resolve(state)
-	_check_ritual()
+	_check_plot()
 
 
-func _check_ritual() -> void:
-	if state.ritual_progress >= Config.RITUAL_TARGET:
-		_end_game(Enums.Faction.CULT, "The ritual was completed.")
+func _check_plot() -> void:
+	if state.plot_progress >= state.mode.plot_target:
+		_end_game(Enums.Faction.TRAITOR, state.mode.traitor_win_text)
 
 
 func _end_game(winner: int, reason: String) -> void:
 	state.winner = winner
 	state.win_reason = reason
-	state.log_event("game_over", {"winner": Enums.faction_name(winner), "reason": reason})
+	state.log_event("game_over", {"winner": state.mode.faction_label(winner), "reason": reason})
 	phase.end_game()
 	game_over.emit(winner, reason)
 

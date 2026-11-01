@@ -3,16 +3,20 @@ extends RefCounted
 ## clients directly; use get_public_state() / get_private_state().
 
 const Enums = preload("res://core/Enums.gd")
-const Config = preload("res://core/GameConfig.gd")
 
 const NO_WINNER := -1
 
 var session_id := ""
 var rng_seed := 0
+## The active GameMode (labels, plot numbers, scenario).
+var mode
+## Scenario data loaded from the mode's scenario file.
+var scenario := {}
 var day := 0
 ## int player_id -> PlayerState
 var players := {}
-var ritual_progress := 0
+## The traitors' win track ("Contract", "Ritual"...).
+var plot_progress := 0
 var winner: int = NO_WINNER
 var win_reason := ""
 ## Each entry: { day, type, visibility, data }.
@@ -29,18 +33,18 @@ func log_event(type: String, data: Dictionary, visibility = "public") -> void:
 	})
 
 
-func cultist_ids() -> Array:
+func traitor_ids() -> Array:
 	var ids := []
 	for p in players.values():
-		if p.role == Enums.Role.CULTIST:
+		if p.is_traitor():
 			ids.append(p.id)
 	return ids
 
 
-func active_cultist_ids() -> Array:
+func active_traitor_ids() -> Array:
 	var ids := []
 	for p in players.values():
-		if p.is_active_cultist():
+		if p.is_active_traitor():
 			ids.append(p.id)
 	return ids
 
@@ -63,17 +67,19 @@ func events_visible_to(player_id: int) -> Array:
 func get_public_state() -> Dictionary:
 	var public_players := []
 	for p in players.values():
-		public_players.append(p.to_public())
+		public_players.append(p.to_public(mode))
 	var data := {
 		"session_id": session_id,
+		"mode": mode.to_public(),
+		"setting": scenario.get("setting", {}),
 		"day": day,
 		"players": public_players,
-		"winner": Enums.faction_name(winner) if is_over() else null,
+		"winner": mode.faction_label(winner) if is_over() else null,
 		"win_reason": win_reason,
 	}
-	if Config.RITUAL_PROGRESS_PUBLIC:
-		data["ritual_progress"] = ritual_progress
-		data["ritual_target"] = Config.RITUAL_TARGET
+	if mode.plot_progress_public:
+		data["plot_progress"] = plot_progress
+		data["plot_target"] = mode.plot_target
 	return data
 
 
@@ -82,10 +88,11 @@ func get_private_state(player_id: int) -> Dictionary:
 	if not players.has(player_id):
 		return data
 	var me = players[player_id]
-	data["me"] = me.to_private()
+	data["me"] = me.to_private(mode)
 	data["events"] = events_visible_to(player_id)
-	if me.role == Enums.Role.CULTIST:
-		data["cult_allies"] = cultist_ids().filter(func(pid): return pid != player_id)
-		data["ritual_progress"] = ritual_progress
-		data["ritual_target"] = Config.RITUAL_TARGET
+	if me.is_traitor():
+		data["traitor_allies"] = traitor_ids().filter(func(pid): return pid != player_id)
+		data["plot_progress"] = plot_progress
+		data["plot_target"] = mode.plot_target
+		data["plot_target_npc"] = scenario.get("target_npc", "")
 	return data
