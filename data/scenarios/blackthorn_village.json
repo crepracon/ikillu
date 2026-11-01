@@ -1,0 +1,75 @@
+{
+  "id": "blackthorn_village",
+  "setting": {
+    "name": "Blackthorn Village",
+    "town": "Blackthorn",
+    "summary": "A remote village cut off by strange events. Villagers have vanished, chanting drifts from the forest at night, and someone has been entering the old crypt."
+  },
+  "target_npc": "",
+  "locations": [
+    {
+      "id": "village_square",
+      "name": "Village Square",
+      "description": "The heart of the village, where nervous villagers trade rumors.",
+      "connections": ["tavern", "blacksmith", "church"]
+    },
+    {
+      "id": "tavern",
+      "name": "The Rusty Griffin",
+      "description": "A crowded tavern filled with nervous villagers.",
+      "connections": ["village_square", "blacksmith"]
+    },
+    {
+      "id": "blacksmith",
+      "name": "Blacksmith",
+      "description": "Aldric's forge and weapon racks.",
+      "connections": ["village_square", "tavern"]
+    },
+    {
+      "id": "church",
+      "name": "Church",
+      "description": "A cold stone church. The priest has been acting strangely.",
+      "connections": ["village_square", "crypt"]
+    },
+    {
+      "id": "crypt",
+      "name": "Crypt",
+      "description": "Steps beneath the church lead to the old crypt.",
+      "connections": ["church"]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "aldric",
+      "name": "Aldric",
+      "occupation": "Blacksmith",
+      "location": "blacksmith",
+      "personality": "Suspicious, stubborn, protective of his daughter.",
+      "notes": "Has a connection to the cult."
+    },
+    {
+      "id": "mara",
+      "name": "Mara",
+      "occupation": "Innkeeper",
+      "location": "tavern",
+      "personality": "Collects every rumor in the village.",
+      "notes": ""
+    },
+    {
+      "id": "father_rowan",
+      "name": "Father Rowan",
+      "occupation": "Priest",
+      "location": "church",
+      "personality": "Evasive and anxious.",
+      "notes": "Hiding something in the church."
+    },
+    {
+      "id": "edwin",
+      "name": "Edwin",
+      "occupation": "Traveler",
+      "location": "tavern",
+      "personality": "Jumpy outsider who wants to leave.",
+      "notes": "Witnessed something near the crypt."
+    }
+  ]
+}

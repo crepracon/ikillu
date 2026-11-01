@@ -1,0 +1,131 @@
+{
+  "id": "wayward_lantern",
+  "setting": {
+    "name": "The Wayward Lantern",
+    "town": "Hollowmere",
+    "summary": "A crossroads inn on the edge of a small market town. A spring storm has washed out the bridge, and a dozen travelers are stuck until the river falls. One of the guests is a duchess travelling to the capital under guard. Somebody has been paid to make sure she never arrives."
+  },
+  "target_npc": "duchess_isolde",
+  "locations": [
+    {
+      "id": "common_room",
+      "name": "Common Room",
+      "description": "Low beams, a roaring hearth, and every table taken by stranded travelers.",
+      "connections": ["guest_rooms", "kitchen", "stables", "town_square"]
+    },
+    {
+      "id": "guest_rooms",
+      "name": "Guest Rooms",
+      "description": "A creaking upstairs hallway of locked doors. The duchess has the corner suite.",
+      "connections": ["common_room"]
+    },
+    {
+      "id": "kitchen",
+      "name": "Kitchen and Cellar",
+      "description": "Steam, copper pots, and stairs down to a cellar of ale casks and root stores.",
+      "connections": ["common_room"]
+    },
+    {
+      "id": "stables",
+      "name": "Stables",
+      "description": "Wet horses, a hayloft, and the duchess's carriage under guard.",
+      "connections": ["common_room", "town_square"]
+    },
+    {
+      "id": "town_square",
+      "name": "Town Square",
+      "description": "Muddy cobbles between the smithy, the bakery, and the guardhouse.",
+      "connections": ["common_room", "stables", "smithy", "bakery", "guardhouse", "graveyard"]
+    },
+    {
+      "id": "smithy",
+      "name": "Smithy",
+      "description": "A forge that never fully goes cold, and racks of half-finished blades.",
+      "connections": ["town_square"]
+    },
+    {
+      "id": "bakery",
+      "name": "Bakery",
+      "description": "Warm bread at dawn. The baker supplies the inn's kitchen every morning.",
+      "connections": ["town_square"]
+    },
+    {
+      "id": "guardhouse",
+      "name": "Guardhouse",
+      "description": "A cramped stone post with a duty roster, a cell, and a map of the roads.",
+      "connections": ["town_square"]
+    },
+    {
+      "id": "graveyard",
+      "name": "Graveyard",
+      "description": "Leaning stones behind the chapel, and a fresh grave dug before the storm hit.",
+      "connections": ["town_square"]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "duchess_isolde",
+      "name": "Duchess Isolde Marrow",
+      "occupation": "Noble guest",
+      "location": "guest_rooms",
+      "personality": "Proud, sharp-tongued, and more frightened than she lets on.",
+      "notes": "The assassins' target. Travelling to the capital to testify before the crown."
+    },
+    {
+      "id": "sir_kestrel",
+      "name": "Sir Aldous Kestrel",
+      "occupation": "Knight of the duchess's escort",
+      "location": "guest_rooms",
+      "personality": "Dutiful and suspicious of everyone, including his own men.",
+      "notes": "Guards the duchess's door at night."
+    },
+    {
+      "id": "mara",
+      "name": "Mara Thistle",
+      "occupation": "Innkeeper",
+      "location": "common_room",
+      "personality": "Warm, nosy, and knows every guest's business.",
+      "notes": "Keeps the guest ledger and the room keys."
+    },
+    {
+      "id": "pell",
+      "name": "Pell",
+      "occupation": "Stable boy",
+      "location": "stables",
+      "personality": "Eager, easily bribed, notices more than adults think.",
+      "notes": "Sleeps in the hayloft."
+    },
+    {
+      "id": "captain_holt",
+      "name": "Captain Bram Holt",
+      "occupation": "Town guard captain",
+      "location": "guardhouse",
+      "personality": "Tired, practical, and short on men.",
+      "notes": "Keeps the duty roster for the town watch."
+    },
+    {
+      "id": "aldric",
+      "name": "Aldric",
+      "occupation": "Blacksmith",
+      "location": "smithy",
+      "personality": "Stubborn, protective of his daughter, distrustful of outsiders.",
+      "notes": "Sells blades and mends locks."
+    },
+    {
+      "id": "wenna",
+      "name": "Wenna Crust",
+      "occupation": "Baker",
+      "location": "bakery",
+      "personality": "Cheerful gossip who is up before anyone else.",
+      "notes": "Delivers bread to the inn's kitchen every dawn."
+    },
+    {
+      "id": "old_tobias",
+      "name": "Old Tobias",
+      "occupation": "Gravedigger",
+      "location": "graveyard",
+      "personality": "Gruff, superstitious, and fond of drink.",
+      "notes": "Dug a grave before the storm that nobody has been buried in yet."
+    }
+  ]
+}
